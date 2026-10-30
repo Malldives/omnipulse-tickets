@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: omnipulse-webhook-api
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: VERIFY_TOKEN
+        value: omnipulse_secret_verify_token_2026
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
