@@ -1,0 +1,2424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OmniPulse — WhatsApp & Instagram Incoming Ticket & Notification Hub</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    /* Custom subtle scrollbars */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(148, 163, 184, 0.35);
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(100, 116, 139, 0.55);
+    }
+    @keyframes slideInRight {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    @keyframes pulseRing {
+      0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+      70% { transform: scale(1); box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+      100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+    }
+    .toast-enter {
+      animation: slideInRight 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    .pulse-badge {
+      animation: pulseRing 2s infinite;
+    }
+    .ig-gradient {
+      background: linear-gradient(135deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);
+    }
+    .wa-gradient {
+      background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 h-screen flex flex-col overflow-hidden select-none">
+
+  <!-- TOP NAVIGATION & NOTIFICATION BAR -->
+  <header class="h-16 bg-slate-900/95 border-b border-slate-800 px-4 flex items-center justify-between shrink-0 z-30">
+    <!-- Left: Brand + View Switcher -->
+    <div class="flex items-center gap-4">
+      <div class="flex items-center gap-2.5">
+        <div class="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-600/30">
+          <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
+          </svg>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="font-bold text-base tracking-tight text-white">OmniPulse</span>
+            <button id="openWebhookModalBtn" type="button" title="Configure & Connect WhatsApp / Instagram Webhook" class="text-[10px] font-semibold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5 transition cursor-pointer">
+              <span id="webhookStatusDot" class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+              <span id="webhookStatusText">Connect Webhook</span>
+            </button>
+          </div>
+          <p class="text-[11px] text-slate-400 hidden sm:block">WhatsApp & Instagram Ticket Notification Center</p>
+        </div>
+      </div>
+
+      <!-- Main View Mode Tabs -->
+      <div class="hidden md:flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 ml-2">
+        <button id="viewTabInbox" type="button" class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all bg-indigo-600 text-white shadow">
+          Inbox & Triage
+        </button>
+        <button id="viewTabNotifications" type="button" class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all text-slate-400 hover:text-white flex items-center gap-1.5">
+          <span>Notification Feed & SLA</span>
+          <span id="navTabUnreadBadge" class="px-1.5 py-0.2 rounded-full text-[10px] bg-rose-500/20 text-rose-300 border border-rose-500/30">4</span>
+        </button>
+
+      </div>
+    </div>
+
+    <!-- Center: Channel Quick Counters -->
+    <div class="hidden xl:flex items-center gap-2.5">
+      <button id="quickFilterAll" type="button" class="px-3 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-800 border border-slate-700 text-xs font-medium text-slate-200 flex items-center gap-2 transition">
+        <span>All Tickets</span>
+        <span id="headerCountAll" class="px-1.5 py-0.5 rounded-md bg-slate-700 text-slate-200 font-semibold text-[11px]">8</span>
+      </button>
+      <button id="quickFilterWA" type="button" class="px-3 py-1.5 rounded-xl bg-emerald-950/50 hover:bg-emerald-900/50 border border-emerald-700/40 text-xs font-medium text-emerald-300 flex items-center gap-2 transition">
+        <span class="w-2 h-2 rounded-full bg-[#25D366]"></span>
+        <span>WhatsApp</span>
+        <span id="headerCountWA" class="px-1.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-semibold text-[11px]">4</span>
+      </button>
+      <button id="quickFilterIG" type="button" class="px-3 py-1.5 rounded-xl bg-pink-950/50 hover:bg-pink-900/50 border border-pink-700/40 text-xs font-medium text-pink-300 flex items-center gap-2 transition">
+        <span class="w-2 h-2 rounded-full bg-[#E1306C]"></span>
+        <span>Instagram</span>
+        <span id="headerCountIG" class="px-1.5 py-0.5 rounded-md bg-pink-500/20 text-pink-300 font-semibold text-[11px]">4</span>
+      </button>
+    </div>
+
+    <!-- Right: Live Incoming Simulator, Auto-Stream, Sound & Notification Bell -->
+    <div class="flex items-center gap-2 sm:gap-2.5">
+      <!-- Simulate Incoming Dropdown / Buttons -->
+      <div class="flex items-center bg-slate-950 rounded-xl p-1 border border-slate-800">
+        <button id="simWhatsAppBtn" type="button" title="Simulate a new incoming WhatsApp ticket" class="px-2.5 py-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-300 text-xs font-semibold flex items-center gap-1.5 transition">
+          <svg class="w-3.5 h-3.5 text-[#25D366]" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766.001-3.187-2.575-5.77-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.299.045-.677.063-1.092-.069-.252-.08-.575-.187-.988-.365-1.739-.751-2.874-2.502-2.961-2.617-.087-.116-.708-.94-.708-1.793s.448-1.273.607-1.446c.159-.173.346-.217.462-.217l.332.006c.106.005.249-.04.39.298.144.347.491 1.2.534 1.287.043.087.072.188.014.304-.058.116-.087.188-.173.289l-.26.304c-.087.086-.177.18-.076.354.101.174.449.741.964 1.201.662.591 1.221.774 1.394.86s.274.072.376-.043c.101-.116.433-.506.549-.68.116-.173.231-.145.39-.087s1.011.477 1.184.564.289.13.332.202c.045.072.045.419-.1.824zm-3.423-14.416c-6.627 0-12 5.373-12 12 0 2.625.846 5.059 2.284 7.033l-1.492 5.451 5.602-1.47c1.906 1.045 4.093 1.642 6.422 1.642 6.627 0 12-5.373 12-12s-5.373-12-12.816-12.656z"/>
+          </svg>
+          <span>+ WA Ticket</span>
+        </button>
+        <button id="simInstagramBtn" type="button" title="Simulate a new incoming Instagram ticket" class="px-2.5 py-1.5 rounded-lg bg-pink-600/20 hover:bg-pink-600/30 border border-pink-500/30 text-pink-300 text-xs font-semibold flex items-center gap-1.5 transition ml-1">
+          <svg class="w-3.5 h-3.5 text-[#E1306C]" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
+          </svg>
+          <span>+ IG Ticket</span>
+        </button>
+      </div>
+
+      <!-- Auto-Stream Toggle -->
+      <button id="autoStreamBtn" type="button" title="Toggle automatic incoming ticket simulation every 14 seconds" class="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-medium text-slate-300 transition">
+        <span id="autoStreamDot" class="w-2 h-2 rounded-full bg-slate-500"></span>
+        <span id="autoStreamLabel">Auto-Stream: Off</span>
+      </button>
+
+      <!-- Sound Alert Toggle -->
+      <button id="soundToggleBtn" type="button" title="Toggle notification sound chime" class="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 transition">
+        <svg id="soundIconOn" class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/>
+        </svg>
+        <svg id="soundIconOff" class="w-4 h-4 text-slate-500 hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15zM17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"/>
+        </svg>
+      </button>
+
+      <!-- Notification Center Bell Button -->
+      <div class="relative">
+        <button id="notifDrawerBtn" type="button" class="relative p-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 transition flex items-center gap-1.5">
+          <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+          </svg>
+          <span id="bellUnreadBadge" class="pulse-badge px-1.5 py-0.5 text-[10px] font-bold bg-rose-500 text-white rounded-full leading-none">4</span>
+        </button>
+
+        <!-- DROPDOWN NOTIFICATION DRAWER -->
+        <div id="notifDrawer" class="hidden absolute right-0 mt-2 w-80 sm:w-96 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl z-50 overflow-hidden">
+          <div class="p-3.5 border-b border-slate-800 flex items-center justify-between bg-slate-950/60">
+            <div>
+              <h3 class="text-xs font-bold uppercase tracking-wider text-slate-200 flex items-center gap-2">
+                <span>Incoming Notifications</span>
+                <span id="drawerUnreadCount" class="px-1.5 py-0.5 text-[10px] rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30">4 unread</span>
+              </h3>
+              <p class="text-[11px] text-slate-400 mt-0.5">Real-time webhook alerts from WA & IG</p>
+            </div>
+            <button id="markAllNotifReadBtn" type="button" class="text-[11px] font-semibold text-indigo-400 hover:text-indigo-300 transition">
+              Mark all read
+            </button>
+          </div>
+
+          <!-- Filter pills inside drawer -->
+          <div class="px-3.5 py-2 bg-slate-900 border-b border-slate-800 flex items-center gap-1.5">
+            <button type="button" data-drawer-filter="all" class="drawer-filter-btn px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-indigo-600 text-white">All</button>
+            <button type="button" data-drawer-filter="unread" class="drawer-filter-btn px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-slate-800 text-slate-300 hover:text-white">Unread</button>
+            <button type="button" data-drawer-filter="whatsapp" class="drawer-filter-btn px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-slate-800 text-emerald-400 hover:bg-slate-700">WhatsApp</button>
+            <button type="button" data-drawer-filter="instagram" class="drawer-filter-btn px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-slate-800 text-pink-400 hover:bg-slate-700">Instagram</button>
+          </div>
+
+          <!-- Notification items list -->
+          <div id="notifDrawerList" class="max-h-96 overflow-y-auto divide-y divide-slate-800/80"></div>
+
+          <div class="p-2.5 bg-slate-950/80 border-t border-slate-800 text-center">
+            <button id="openFullNotifLogBtn" type="button" class="text-xs font-semibold text-indigo-400 hover:text-indigo-300">
+              View Full Notification Audit Log & SLA Analytics →
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- MOBILE VIEW MODE BAR -->
+  <div class="flex md:hidden bg-slate-900 border-b border-slate-800 px-3 py-1.5 gap-2 shrink-0">
+    <button id="mobileViewInboxBtn" type="button" class="flex-1 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white">Inbox Workspace</button>
+    <button id="mobileViewNotifBtn" type="button" class="flex-1 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300">Notifications & SLA</button>
+  </div>
+
+  <!-- FLOATING LIVE TOAST CONTAINER -->
+  <div id="toastContainer" class="fixed top-20 right-4 z-50 flex flex-col gap-2.5 max-w-sm w-full pointer-events-none"></div>
+
+  <!-- ===================================================================== -->
+  <!-- VIEW 1: OMNICHANNEL INBOX & TICKET TRIAGE WORKSPACE                   -->
+  <!-- ===================================================================== -->
+  <main id="inboxWorkspaceView" class="flex-1 flex overflow-hidden">
+
+    <!-- LEFT PANE: TICKET QUEUE & FILTERS -->
+    <section class="w-full md:w-80 lg:w-96 bg-slate-900/70 border-r border-slate-800 flex flex-col shrink-0">
+      <!-- Search & New Ticket Header -->
+      <div class="p-3.5 border-b border-slate-800 space-y-2.5">
+        <div class="flex items-center gap-2">
+          <div class="relative flex-1">
+            <svg class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+            </svg>
+            <input id="ticketSearchInput" type="text" placeholder="Search ticket ID, name, @handle, message..." class="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-100 placeholder-slate-500 outline-none transition" />
+          </div>
+          <button id="newManualTicketBtn" type="button" title="Create manual ticket" class="p-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shrink-0 transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Channel Filter Pills -->
+        <div class="flex items-center gap-1.5 overflow-x-auto pb-0.5">
+          <button type="button" data-channel="all" class="channel-pill px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-600 text-white shrink-0 transition">
+            All Channels
+          </button>
+          <button type="button" data-channel="whatsapp" class="channel-pill px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-800 text-emerald-400 hover:bg-slate-700 shrink-0 flex items-center gap-1.5 transition">
+            <span class="w-2 h-2 rounded-full bg-[#25D366]"></span>
+            WhatsApp
+          </button>
+          <button type="button" data-channel="instagram" class="channel-pill px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-800 text-pink-400 hover:bg-slate-700 shrink-0 flex items-center gap-1.5 transition">
+            <span class="w-2 h-2 rounded-full bg-[#E1306C]"></span>
+            Instagram
+          </button>
+          <button type="button" data-channel="unread" class="channel-pill px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-800 text-rose-300 hover:bg-slate-700 shrink-0 transition">
+            Unread Only
+          </button>
+        </div>
+
+        <!-- Status Filter Tabs + Priority Sort -->
+        <div class="flex items-center justify-between pt-1">
+          <div class="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800 text-[11px]">
+            <button type="button" data-status="all" class="status-tab px-2 py-1 rounded-md font-semibold bg-slate-800 text-white">All</button>
+            <button type="button" data-status="New" class="status-tab px-2 py-1 rounded-md font-medium text-slate-400 hover:text-white">New</button>
+            <button type="button" data-status="Open" class="status-tab px-2 py-1 rounded-md font-medium text-slate-400 hover:text-white">Open</button>
+            <button type="button" data-status="Pending" class="status-tab px-2 py-1 rounded-md font-medium text-slate-400 hover:text-white">Pending</button>
+            <button type="button" data-status="Resolved" class="status-tab px-2 py-1 rounded-md font-medium text-slate-400 hover:text-white">Resolved</button>
+          </div>
+
+          <select id="ticketSortSelect" aria-label="Sort tickets" class="bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-[11px] text-slate-300 outline-none">
+            <option value="newest">Newest</option>
+            <option value="unread">Unread First</option>
+            <option value="priority">Priority</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Queue Summary Strip -->
+      <div class="px-3.5 py-2 bg-slate-950/60 border-b border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
+        <span id="queueShowingLabel">Showing 8 tickets</span>
+        <button id="markAllTicketsReadBtn" type="button" class="text-indigo-400 hover:text-indigo-300 font-medium">Clear unread badges</button>
+      </div>
+
+      <!-- Scrollable Ticket Queue List -->
+      <div id="ticketQueueContainer" class="flex-1 overflow-y-auto divide-y divide-slate-800/70"></div>
+    </section>
+
+    <!-- CENTER PANE: ACTIVE TICKET CONVERSATION & REPLY -->
+    <section class="hidden md:flex flex-1 flex-col bg-slate-950 overflow-hidden">
+      <!-- Active Ticket Top Bar -->
+      <div id="convHeader" class="h-16 px-5 bg-slate-900/80 border-b border-slate-800 flex items-center justify-between shrink-0"></div>
+
+      <!-- Channel Webhook & SLA Banner -->
+      <div id="convChannelBanner" class="px-5 py-2 bg-slate-900/40 border-b border-slate-800/80 flex items-center justify-between text-xs shrink-0"></div>
+
+      <!-- Messages Thread Container -->
+      <div id="convMessagesList" class="flex-1 overflow-y-auto p-5 space-y-4"></div>
+
+      <!-- Reply & Internal Note Composer -->
+      <div class="p-4 bg-slate-900/90 border-t border-slate-800 shrink-0">
+        <!-- Composer Mode Tabs & Canned Responses -->
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-2.5">
+          <div class="flex items-center gap-1.5">
+            <button id="composerModeReplyBtn" type="button" class="px-3 py-1 rounded-lg text-xs font-semibold bg-indigo-600 text-white transition">
+              Public Channel Reply
+            </button>
+            <button id="composerModeNoteBtn" type="button" class="px-3 py-1 rounded-lg text-xs font-semibold bg-slate-800 text-amber-300 hover:bg-slate-700 transition flex items-center gap-1">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+              </svg>
+              <span>Internal Team Note</span>
+            </button>
+          </div>
+
+          <!-- Quick Canned Templates -->
+          <div class="flex items-center gap-1.5 overflow-x-auto">
+            <span class="text-[11px] text-slate-400">Quick Reply:</span>
+            <button type="button" data-template="Hi! Thanks for reaching out. Let me check your order status right away." class="canned-btn px-2 py-1 rounded-md bg-slate-800 hover:bg-slate-700 text-[11px] text-slate-300 transition">Order Check</button>
+            <button type="button" data-template="Could you please share your Order ID or registered phone number so we can assist you faster?" class="canned-btn px-2 py-1 rounded-md bg-slate-800 hover:bg-slate-700 text-[11px] text-slate-300 transition">Ask Order ID</button>
+            <button type="button" data-template="We've prioritized your courier dispatch and sent the tracking link to your WhatsApp/DM. Thank you for your patience!" class="canned-btn px-2 py-1 rounded-md bg-slate-800 hover:bg-slate-700 text-[11px] text-slate-300 transition">Courier Update</button>
+          </div>
+        </div>
+
+        <!-- Textarea & Send Controls -->
+        <div id="composerBoxWrapper" class="rounded-xl border border-slate-700 bg-slate-950 p-2.5 focus-within:border-indigo-500 transition">
+          <textarea id="replyTextarea" rows="2" placeholder="Write a reply to the customer..." class="w-full bg-transparent text-xs sm:text-sm text-slate-100 placeholder-slate-500 outline-none resize-none"></textarea>
+          <div class="flex items-center justify-between pt-2 border-t border-slate-800/80 mt-1">
+            <div class="flex items-center gap-2">
+              <button id="simulateCustomerReplyBtn" type="button" title="Simulate an immediate customer follow-up message on this ticket" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] font-medium text-slate-300 flex items-center gap-1 transition">
+                <span>⚡ Simulate Customer Follow-up</span>
+              </button>
+              <span id="composerChannelIndicator" class="text-[11px] text-slate-400 hidden sm:inline">Sending via WhatsApp Cloud API</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <button id="sendAndResolveBtn" type="button" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-emerald-950/80 border border-slate-700 hover:border-emerald-600/50 text-xs font-semibold text-emerald-300 transition">
+                Send & Resolve
+              </button>
+              <button id="sendReplyBtn" type="button" class="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white shadow-lg shadow-indigo-600/20 flex items-center gap-1.5 transition">
+                <span>Send Reply</span>
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- RIGHT PANE: CUSTOMER CONTEXT, SLA & NOTIFICATION SETTINGS -->
+    <aside class="hidden lg:flex w-80 bg-slate-900/70 border-l border-slate-800 flex-col overflow-y-auto shrink-0 p-4 space-y-4">
+      <!-- Customer Profile Card -->
+      <div id="rightCustomerCard" class="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-3"></div>
+
+      <!-- Ticket Properties & Assignment -->
+      <div class="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-3">
+        <h4 class="text-xs font-bold uppercase tracking-wider text-slate-400">Ticket Triage & Routing</h4>
+
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label for="propStatusSelect" class="block text-[11px] text-slate-400 mb-1">Status</label>
+            <select id="propStatusSelect" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 outline-none">
+              <option value="New">New</option>
+              <option value="Open">Open</option>
+              <option value="Pending">Pending</option>
+              <option value="Resolved">Resolved</option>
+            </select>
+          </div>
+          <div>
+            <label for="propPrioritySelect" class="block text-[11px] text-slate-400 mb-1">Priority</label>
+            <select id="propPrioritySelect" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 outline-none">
+              <option value="Urgent">Urgent</option>
+              <option value="High">High</option>
+              <option value="Medium">Medium</option>
+              <option value="Low">Low</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label for="propAssigneeSelect" class="block text-[11px] text-slate-400 mb-1">Assigned Agent</label>
+          <select id="propAssigneeSelect" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 outline-none">
+            <option value="Alex Pratama (You)">Alex Pratama (You)</option>
+            <option value="Siti Rahma (WA Specialist)">Siti Rahma (WA Specialist)</option>
+            <option value="Budi Santoso (IG Social)">Budi Santoso (IG Social)</option>
+            <option value="Unassigned">Unassigned</option>
+          </select>
+        </div>
+
+        <!-- Tags -->
+        <div>
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="text-[11px] text-slate-400">Ticket Tags</span>
+          </div>
+          <div id="rightTagsContainer" class="flex flex-wrap gap-1.5 mb-2"></div>
+          <div class="flex gap-1.5">
+            <input id="newTagInput" type="text" placeholder="Add tag (e.g. Refund)..." class="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-slate-200 outline-none" />
+            <button id="addTagBtn" type="button" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-indigo-300">+ Add</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Real-Time Alert & Notification Preferences -->
+      <div class="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-2.5">
+        <div class="flex items-center justify-between">
+          <h4 class="text-xs font-bold uppercase tracking-wider text-slate-400">Notification Rules</h4>
+          <span class="text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">Active</span>
+        </div>
+
+        <label class="flex items-center justify-between text-xs text-slate-300 cursor-pointer py-1">
+          <span>Popup Toast on New WA/IG</span>
+          <input id="prefToastToggle" type="checkbox" checked class="accent-indigo-500 w-4 h-4 rounded" />
+        </label>
+        <label class="flex items-center justify-between text-xs text-slate-300 cursor-pointer py-1">
+          <span>Audio Chime on Incoming Alert</span>
+          <input id="prefSoundToggle" type="checkbox" checked class="accent-indigo-500 w-4 h-4 rounded" />
+        </label>
+        <label class="flex items-center justify-between text-xs text-slate-300 cursor-pointer py-1">
+          <span>Auto-Claim Ticket on Reply</span>
+          <input id="prefAutoAssignToggle" type="checkbox" checked class="accent-indigo-500 w-4 h-4 rounded" />
+        </label>
+      </div>
+    </aside>
+  </main>
+
+  <!-- ===================================================================== -->
+  <!-- VIEW 2: NOTIFICATION AUDIT FEED & SLA ANALYTICS DASHBOARD             -->
+  <!-- ===================================================================== -->
+  <section id="notificationAnalyticsView" class="hidden flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-950 space-y-6">
+    <!-- Top KPI Row -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="p-4 rounded-2xl bg-slate-900 border border-slate-800">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-medium text-slate-400">Unread Incoming Alerts</span>
+          <span class="p-2 rounded-xl bg-rose-500/15 text-rose-400">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+            </svg>
+          </span>
+        </div>
+        <div id="kpiUnreadCount" class="text-2xl font-bold text-white mt-2">4</div>
+        <p class="text-[11px] text-rose-300 mt-1">Requires immediate agent triage</p>
+      </div>
+
+      <div class="p-4 rounded-2xl bg-slate-900 border border-slate-800">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-medium text-slate-400">WhatsApp Business Queue</span>
+          <span class="px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-400 text-[11px] font-semibold">WA Cloud API</span>
+        </div>
+        <div id="kpiWACount" class="text-2xl font-bold text-emerald-400 mt-2">4</div>
+        <p class="text-[11px] text-slate-400 mt-1">Avg First Response: <strong class="text-slate-200">1m 42s</strong></p>
+      </div>
+
+      <div class="p-4 rounded-2xl bg-slate-900 border border-slate-800">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-medium text-slate-400">Instagram Direct & Mentions</span>
+          <span class="px-2 py-0.5 rounded-md bg-pink-500/15 text-pink-400 text-[11px] font-semibold">IG Graph Webhook</span>
+        </div>
+        <div id="kpiIGCount" class="text-2xl font-bold text-pink-400 mt-2">4</div>
+        <p class="text-[11px] text-slate-400 mt-1">Avg First Response: <strong class="text-slate-200">2m 15s</strong></p>
+      </div>
+
+      <div class="p-4 rounded-2xl bg-slate-900 border border-slate-800">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-medium text-slate-400">SLA Compliance Rate</span>
+          <span class="px-2 py-0.5 rounded-md bg-indigo-500/15 text-indigo-300 text-[11px] font-semibold">&lt; 15m Target</span>
+        </div>
+        <div class="text-2xl font-bold text-white mt-2">96.4%</div>
+        <p class="text-[11px] text-emerald-400 mt-1">+2.1% vs yesterday</p>
+      </div>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div class="p-4 rounded-2xl bg-slate-900 border border-slate-800">
+        <div class="flex items-center justify-between mb-3">
+          <div>
+            <h3 class="text-sm font-bold text-white">Incoming Ticket Notifications by Hour</h3>
+            <p class="text-xs text-slate-400">WhatsApp Business vs Instagram Direct & Story Mentions</p>
+          </div>
+        </div>
+        <div class="relative h-64">
+          <canvas id="channelVolumeChart"></canvas>
+        </div>
+      </div>
+
+      <div class="p-4 rounded-2xl bg-slate-900 border border-slate-800">
+        <div class="flex items-center justify-between mb-3">
+          <div>
+            <h3 class="text-sm font-bold text-white">Ticket Queue Breakdown by Status</h3>
+            <p class="text-xs text-slate-400">Live distribution across triage states</p>
+          </div>
+        </div>
+        <div class="relative h-64">
+          <canvas id="statusBreakdownChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Full Real-Time Notification Stream Table -->
+    <div class="rounded-2xl bg-slate-900 border border-slate-800 overflow-hidden">
+      <div class="p-4 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 class="text-sm font-bold text-white">Real-Time Incoming Notification Log</h3>
+          <p class="text-xs text-slate-400">Every webhook event from WhatsApp & Instagram with one-click ticket jump</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <select id="logChannelFilter" aria-label="Filter notification log by channel" class="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-200 outline-none">
+            <option value="all">All Channels</option>
+            <option value="whatsapp">WhatsApp Only</option>
+            <option value="instagram">Instagram Only</option>
+          </select>
+          <button id="simBurstBtn" type="button" class="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white transition">
+            + Trigger Test Notification
+          </button>
+        </div>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse text-xs">
+          <thead>
+            <tr class="bg-slate-950/70 text-slate-400 border-b border-slate-800 uppercase text-[10px] tracking-wider">
+              <th class="py-3 px-4">State</th>
+              <th class="py-3 px-4">Time</th>
+              <th class="py-3 px-4">Channel & Trigger</th>
+              <th class="py-3 px-4">Customer</th>
+              <th class="py-3 px-4">Incoming Message Snippet</th>
+              <th class="py-3 px-4">Priority</th>
+              <th class="py-3 px-4 text-right">Action</th>
+            </tr>
+          </thead>
+          <tbody id="notifAuditTableBody" class="divide-y divide-slate-800/70"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- MODAL: FULL-STACK CLOUD DATABASE & WEBHOOK CONNECTION -->
+  <div id="webhookConfigModal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 select-text">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-xl w-full p-5 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div>
+          <h3 class="text-sm font-bold text-white">Full-Stack Setup: 1. Supabase Database → 2. Webhook Server</h3>
+          <p class="text-[11px] text-slate-400 mt-0.5">Connect your cloud PostgreSQL database first, then link your webhook server last</p>
+        </div>
+        <button id="closeWebhookModalBtn" type="button" class="text-slate-400 hover:text-white text-sm">✕</button>
+      </div>
+
+      <div class="space-y-3.5 text-xs">
+        <!-- STEP 1: SUPABASE DATABASE & REALTIME -->
+        <div class="p-3.5 rounded-xl bg-slate-950 border border-indigo-500/40 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-indigo-300">Step 1: Supabase Cloud Database & Realtime</span>
+            <span id="supabaseConnBadge" class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-800 text-slate-300 border border-slate-700">
+              Local Browser Storage
+            </span>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div>
+              <label for="cfgSupabaseUrl" class="block text-[10px] text-slate-400 mb-1">Supabase Project URL</label>
+              <input id="cfgSupabaseUrl" type="text" placeholder="https://xyzcompany.supabase.co" class="w-full bg-slate-900 border border-slate-700 focus:border-indigo-500 rounded-xl px-3 py-1.5 text-xs text-slate-100 font-mono outline-none" />
+            </div>
+            <div>
+              <label for="cfgSupabaseKey" class="block text-[10px] text-slate-400 mb-1">Supabase Anon Public Key</label>
+              <input id="cfgSupabaseKey" type="password" placeholder="eyJhbGciOiJIUzI1NiIsInR5c..." class="w-full bg-slate-900 border border-slate-700 focus:border-indigo-500 rounded-xl px-3 py-1.5 text-xs text-slate-100 font-mono outline-none" />
+            </div>
+          </div>
+          <div class="flex flex-wrap items-center justify-between gap-2 pt-1">
+            <button id="copySqlSchemaBtn" type="button" class="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[11px] font-semibold text-indigo-300 transition">
+              📋 Copy SQL Schema (schema.sql)
+            </button>
+            <button id="connectSupabaseBtn" type="button" class="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white transition">
+              Connect Supabase DB
+            </button>
+          </div>
+        </div>
+
+        <!-- STEP 2 (LAST STEP): WEBHOOK BACKEND & META API -->
+        <div class="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="font-semibold text-slate-200">Last Step: Webhook Backend Server URL (Render / Local)</span>
+            <span id="liveStreamConnBadge" class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-800 text-slate-300 border border-slate-700">
+              Simulator Mode
+            </span>
+          </div>
+          <div class="flex gap-2">
+            <input id="cfgBackendUrl" type="text" value="https://omnipulse-api.onrender.com" placeholder="https://omnipulse-api.onrender.com or http://localhost:3000" class="flex-1 bg-slate-900 border border-slate-700 focus:border-indigo-500 rounded-xl px-3 py-1.5 text-xs text-amber-300 font-mono outline-none" />
+            <button id="connectSelfServerBtn" type="button" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-white shrink-0 transition">
+              Connect
+            </button>
+          </div>
+        </div>
+
+        <div class="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="font-semibold text-slate-200">Meta Developer Portal Webhook Settings</span>
+            <button id="testLocalWebhookBtn" type="button" class="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-[11px] font-semibold text-white transition">
+              ⚡ Send Test Webhook
+            </button>
+          </div>
+          <div class="grid grid-cols-1 gap-1.5 text-[11px] font-mono">
+            <div class="p-2 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-between">
+              <span class="text-slate-400">Callback Endpoint:</span>
+              <span class="text-emerald-300">/webhook</span>
+            </div>
+            <div class="p-2 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-between">
+              <span class="text-slate-400">Verify Token:</span>
+              <span class="text-pink-300">omnipulse_secret_verify_token_2026</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+        <button id="doneWebhookModalBtn" type="button" class="px-4 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200">
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: CREATE MANUAL TICKET -->
+  <div id="manualTicketModal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-5 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <h3 class="text-sm font-bold text-white">Log Incoming WhatsApp / Instagram Ticket</h3>
+        <button id="closeManualModalBtn" type="button" class="text-slate-400 hover:text-white text-sm">✕</button>
+      </div>
+
+      <div class="space-y-3 text-xs">
+        <div class="grid grid-cols-2 gap-2.5">
+          <div>
+            <label for="manualChannel" class="block text-slate-400 mb-1">Source Channel</label>
+            <select id="manualChannel" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 outline-none">
+              <option value="whatsapp">WhatsApp Business</option>
+              <option value="instagram">Instagram Direct / Story</option>
+            </select>
+          </div>
+          <div>
+            <label for="manualPriority" class="block text-slate-400 mb-1">Priority</label>
+            <select id="manualPriority" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 outline-none">
+              <option value="Urgent">Urgent</option>
+              <option value="High" selected>High</option>
+              <option value="Medium">Medium</option>
+              <option value="Low">Low</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label for="manualName" class="block text-slate-400 mb-1">Customer Name</label>
+          <input id="manualName" type="text" placeholder="e.g. Rina Wijaya" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 outline-none" />
+        </div>
+
+        <div>
+          <label for="manualHandle" class="block text-slate-400 mb-1">WhatsApp Number or @Instagram Handle</label>
+          <input id="manualHandle" type="text" placeholder="e.g. +62 813-9988-7766 or @rinawijaya.id" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 outline-none" />
+        </div>
+
+        <div>
+          <label for="manualMessage" class="block text-slate-400 mb-1">Incoming Customer Message</label>
+          <textarea id="manualMessage" rows="3" placeholder="Enter the message received..." class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 outline-none resize-none"></textarea>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+        <button id="cancelManualModalBtn" type="button" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300">Cancel</button>
+        <button id="submitManualTicketBtn" type="button" class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white">Create & Notify</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // =========================================================================
+    // STATE & REALISTIC INITIAL DATA
+    // =========================================================================
+    let soundEnabled = true;
+    let toastEnabled = true;
+    let autoAssignOnReply = true;
+    let autoStreamInterval = null;
+    let composerMode = 'reply'; // 'reply' | 'note'
+    let activeChannelFilter = 'all';
+    let activeStatusFilter = 'all';
+    let activeDrawerFilter = 'all';
+    let searchQuery = '';
+    let sortMode = 'newest';
+    let ticketCounter = 1056;
+
+    const tickets = [
+      {
+        id: 'TKT-1055',
+        channel: 'whatsapp',
+        subType: 'WA Business Cloud API',
+        customerName: 'Nadia Putri',
+        handle: '+62 812-8841-9021',
+        avatarBg: 'bg-emerald-600',
+        initials: 'NP',
+        tier: 'VIP Repeat Buyer',
+        orderId: '#ORD-90412',
+        status: 'New',
+        priority: 'Urgent',
+        unreadCount: 2,
+        slaRemainingMin: 6,
+        assignee: 'Unassigned',
+        tags: ['Wrong Item', 'Express Courier'],
+        createdAt: 'Just now',
+        timestampMs: Date.now() - 1000 * 60 * 2,
+        windowNote: '24h WhatsApp Service Window Active (23h 58m left)',
+        messages: [
+          {
+            sender: 'customer',
+            text: 'Halo kak! Paket saya #ORD-90412 baru sampai via GoSend Instant, tapi isinya beda warna (saya pesan Sage Green yang datang Hitam).',
+            time: '08:20 AM'
+          },
+          {
+            sender: 'customer',
+            text: 'Bisa bantu tukar hari ini kak? Soalnya mau dipakai buat acara besok pagi 🙏',
+            time: '08:21 AM',
+            attachment: '📷 Photo_Unboxing_ORD90412.jpg (1.4 MB)'
+          }
+        ]
+      },
+      {
+        id: 'TKT-1054',
+        channel: 'instagram',
+        subType: 'IG Story Mention + DM',
+        customerName: 'Kevin Pramono',
+        handle: '@kevinpramono.id',
+        avatarBg: 'bg-pink-600',
+        initials: 'KP',
+        tier: 'Creator / 42K Followers',
+        orderId: '#ORD-90388',
+        status: 'New',
+        priority: 'High',
+        unreadCount: 1,
+        slaRemainingMin: 11,
+        assignee: 'Budi Santoso (IG Social)',
+        tags: ['Story Mention', 'Collab / Promo'],
+        createdAt: '4m ago',
+        timestampMs: Date.now() - 1000 * 60 * 4,
+        windowNote: 'Replied to your Instagram Story • "Flash Sale 10.10 Live"',
+        messages: [
+          {
+            sender: 'customer',
+            text: 'Kak, kode voucher IGFLASH25 kok muncul "kuota habis" pas mau checkout di link bio? Padahal di Story baru di-post 5 menit lalu 😅',
+            time: '08:18 AM',
+            attachment: '🎞️ Quoted IG Story: Flash Sale 10.10 Live'
+          }
+        ]
+      },
+      {
+        id: 'TKT-1053',
+        channel: 'whatsapp',
+        subType: 'WA Official Catalog Inquiry',
+        customerName: 'Hendra Wijaya',
+        handle: '+62 811-5502-3319',
+        avatarBg: 'bg-teal-600',
+        initials: 'HW',
+        tier: 'B2B Wholesale',
+        orderId: '#QUO-4410',
+        status: 'New',
+        priority: 'High',
+        unreadCount: 1,
+        slaRemainingMin: 14,
+        assignee: 'Siti Rahma (WA Specialist)',
+        tags: ['Bulk Order', 'Invoice'],
+        createdAt: '9m ago',
+        timestampMs: Date.now() - 1000 * 60 * 9,
+        windowNote: '24h WhatsApp Service Window Active (23h 51m left)',
+        messages: [
+          {
+            sender: 'customer',
+            text: 'Selamat pagi tim OmniPulse, saya mau konfirmasi pembayaran proforma invoice #QUO-4410 untuk 50 pcs hampers kantor. Bukti transfer sudah saya lampirkan ya.',
+            time: '08:13 AM',
+            attachment: '📄 Bukti_Transfer_BCA_50pcs.pdf'
+          }
+        ]
+      },
+      {
+        id: 'TKT-1052',
+        channel: 'instagram',
+        subType: 'IG Reel Comment Escalation',
+        customerName: 'Amira Zahra',
+        handle: '@amirazahra_beauty',
+        avatarBg: 'bg-purple-600',
+        initials: 'AZ',
+        tier: 'New Customer',
+        orderId: '#ORD-90215',
+        status: 'New',
+        priority: 'Medium',
+        unreadCount: 1,
+        slaRemainingMin: 19,
+        assignee: 'Unassigned',
+        tags: ['Shipping Tracking', 'IG DM'],
+        createdAt: '15m ago',
+        timestampMs: Date.now() - 1000 * 60 * 15,
+        windowNote: 'Auto-created from Instagram Reel Comment & DM Automation',
+        messages: [
+          {
+            sender: 'customer',
+            text: 'Kak tolong cek DM dong, resi JNE saya #ORD-90215 belum bergerak sejak kemarin sore di gudang transit Jakarta.',
+            time: '08:07 AM'
+          }
+        ]
+      },
+      {
+        id: 'TKT-1051',
+        channel: 'whatsapp',
+        subType: 'WA Business Cloud API',
+        customerName: 'Dimas Anggara',
+        handle: '+62 857-2109-4488',
+        avatarBg: 'bg-indigo-600',
+        initials: 'DA',
+        tier: 'Repeat Buyer',
+        orderId: '#ORD-90190',
+        status: 'Open',
+        priority: 'Medium',
+        unreadCount: 0,
+        slaRemainingMin: 0,
+        assignee: 'Alex Pratama (You)',
+        tags: ['Size Exchange', 'Footwear'],
+        createdAt: '32m ago',
+        timestampMs: Date.now() - 1000 * 60 * 32,
+        windowNote: '24h WhatsApp Service Window Active (23h 28m left)',
+        messages: [
+          {
+            sender: 'customer',
+            text: 'Halo admin, kalau mau tukar size dari 41 ke 42 apakah masih ada stok di gudang Bandung?',
+            time: '07:50 AM'
+          },
+          {
+            sender: 'agent',
+            author: 'Alex Pratama (You)',
+            text: 'Halo Kak Dimas! Kami sudah cek stok gudang Bandung, untuk size 42 masih tersedia 3 pasang. Kakak mau kami bookingkan sekalian?',
+            time: '07:54 AM'
+          }
+        ]
+      },
+      {
+        id: 'TKT-1050',
+        channel: 'instagram',
+        subType: 'IG Direct Message',
+        customerName: 'Clarissa Halim',
+        handle: '@clarissahalim',
+        avatarBg: 'bg-rose-600',
+        initials: 'CH',
+        tier: 'VIP Repeat Buyer',
+        orderId: '#ORD-90112',
+        status: 'Pending',
+        priority: 'Low',
+        unreadCount: 0,
+        slaRemainingMin: 0,
+        assignee: 'Budi Santoso (IG Social)',
+        tags: ['Restock Alert', 'Catalog'],
+        createdAt: '1h ago',
+        timestampMs: Date.now() - 1000 * 60 * 65,
+        windowNote: 'Instagram Standard Messaging Window Active',
+        messages: [
+          {
+            sender: 'customer',
+            text: 'Hi! Kapan seri Ceramic Mug warna Oat White restock lagi ya?',
+            time: '07:15 AM'
+          },
+          {
+            sender: 'note',
+            author: 'Budi Santoso',
+            text: 'Checked with warehouse team — Oat White batch arrives Friday morning.',
+            time: '07:20 AM'
+          },
+          {
+            sender: 'agent',
+            author: 'Budi Santoso',
+            text: 'Halo Kak Clarissa! Seri Oat White akan restock hari Jumat pagi jam 10:00 WIB. Kami sudah catat akun Kakak untuk dikirimkan notifikasi early-access via DM ya ✨',
+            time: '07:22 AM'
+          }
+        ]
+      },
+      {
+        id: 'TKT-1049',
+        channel: 'whatsapp',
+        subType: 'WA Business Cloud API',
+        customerName: 'Rizky Pratama',
+        handle: '+62 813-7744-1122',
+        avatarBg: 'bg-cyan-600',
+        initials: 'RP',
+        tier: 'Standard',
+        orderId: '#ORD-90044',
+        status: 'Resolved',
+        priority: 'Low',
+        unreadCount: 0,
+        slaRemainingMin: 0,
+        assignee: 'Alex Pratama (You)',
+        tags: ['Refund Completed'],
+        createdAt: '2h ago',
+        timestampMs: Date.now() - 1000 * 60 * 120,
+        windowNote: 'Ticket Resolved • CSAT Survey Sent via WhatsApp',
+        messages: [
+          {
+            sender: 'customer',
+            text: 'Dana refund untuk item yang kosong sudah masuk ke rekening saya. Terima kasih banyak bantuannya min!',
+            time: '06:20 AM'
+          },
+          {
+            sender: 'agent',
+            author: 'Alex Pratama (You)',
+            text: 'Sama-sama Kak Rizky! Senang bisa membantu. Tiket ini kami tandai selesai ya, sehat selalu!',
+            time: '06:24 AM'
+          }
+        ]
+      },
+      {
+        id: 'TKT-1048',
+        channel: 'instagram',
+        subType: 'IG Direct Message',
+        customerName: 'Tari Kusuma',
+        handle: '@tarikusuma_',
+        avatarBg: 'bg-fuchsia-600',
+        initials: 'TK',
+        tier: 'Repeat Buyer',
+        orderId: '#ORD-89980',
+        status: 'Resolved',
+        priority: 'Medium',
+        unreadCount: 0,
+        slaRemainingMin: 0,
+        assignee: 'Budi Santoso (IG Social)',
+        tags: ['Address Change'],
+        createdAt: '3h ago',
+        timestampMs: Date.now() - 1000 * 60 * 180,
+        windowNote: 'Ticket Resolved • Verified via Instagram DM',
+        messages: [
+          {
+            sender: 'customer',
+            text: 'Kak, titik maps pengiriman saya sudah di-update ya. Makasih fast responnya!',
+            time: '05:15 AM'
+          },
+          {
+            sender: 'agent',
+            author: 'Budi Santoso',
+            text: 'Siap Kak Tari, label pengiriman sudah diperbarui sebelum kurir pick-up pagi ini.',
+            time: '05:18 AM'
+          }
+        ]
+      }
+    ];
+
+    // Notification feed items (linked to tickets)
+    const notifications = [
+      {
+        id: 'NTF-504',
+        ticketId: 'TKT-1055',
+        channel: 'whatsapp',
+        trigger: 'WhatsApp Incoming Message + Photo',
+        customerName: 'Nadia Putri',
+        handle: '+62 812-8841-9021',
+        snippet: 'Halo kak! Paket saya #ORD-90412 baru sampai via GoSend Instant, tapi isinya beda warna...',
+        priority: 'Urgent',
+        time: '08:21 AM',
+        unread: true
+      },
+      {
+        id: 'NTF-503',
+        ticketId: 'TKT-1054',
+        channel: 'instagram',
+        trigger: 'IG Story Mention (@kevinpramono.id)',
+        customerName: 'Kevin Pramono',
+        handle: '@kevinpramono.id',
+        snippet: 'Kak, kode voucher IGFLASH25 kok muncul "kuota habis" pas mau checkout di link bio?',
+        priority: 'High',
+        time: '08:18 AM',
+        unread: true
+      },
+      {
+        id: 'NTF-502',
+        ticketId: 'TKT-1053',
+        channel: 'whatsapp',
+        trigger: 'WhatsApp PDF Attachment Received',
+        customerName: 'Hendra Wijaya',
+        handle: '+62 811-5502-3319',
+        snippet: 'Selamat pagi tim OmniPulse, saya mau konfirmasi pembayaran proforma invoice #QUO-4410...',
+        priority: 'High',
+        time: '08:13 AM',
+        unread: true
+      },
+      {
+        id: 'NTF-501',
+        ticketId: 'TKT-1052',
+        channel: 'instagram',
+        trigger: 'IG Reel Comment Escalated to DM',
+        customerName: 'Amira Zahra',
+        handle: '@amirazahra_beauty',
+        snippet: 'Kak tolong cek DM dong, resi JNE saya #ORD-90215 belum bergerak sejak kemarin sore...',
+        priority: 'Medium',
+        time: '08:07 AM',
+        unread: true
+      },
+      {
+        id: 'NTF-500',
+        ticketId: 'TKT-1051',
+        channel: 'whatsapp',
+        trigger: 'WhatsApp Customer Inquiry',
+        customerName: 'Dimas Anggara',
+        handle: '+62 857-2109-4488',
+        snippet: 'Halo admin, kalau mau tukar size dari 41 ke 42 apakah masih ada stok di gudang Bandung?',
+        priority: 'Medium',
+        time: '07:50 AM',
+        unread: false
+      }
+    ];
+
+    // Pool of simulated incoming tickets for WhatsApp and Instagram
+    const simulatedWAPool = [
+      {
+        customerName: 'Fajar Nugroho',
+        handle: '+62 812-3390-7712',
+        subType: 'WA Business Cloud API',
+        priority: 'Urgent',
+        orderId: '#ORD-90501',
+        tags: ['Payment Pending', 'Flash Sale'],
+        text: 'Min, saya barusan bayar via QRIS untuk #ORD-90501 tapi status di web masih menunggu pembayaran. Mohon dicek ya!',
+        attachment: '📷 Screenshot_QRIS_90501.png'
+      },
+      {
+        customerName: 'Dewi Sartika',
+        handle: '+62 813-8821-0094',
+        subType: 'WA Catalog Order',
+        priority: 'High',
+        orderId: '#ORD-90518',
+        tags: ['Same-Day Delivery', 'Address Pin'],
+        text: 'Halo kak, apakah pesanan #ORD-90518 bisa dikirim pakai kurir instan sebelum jam 2 siang ini?',
+        attachment: null
+      },
+      {
+        customerName: 'Bayu Setiawan',
+        handle: '+62 852-1194-6630',
+        subType: 'WA Voice Note + Text',
+        priority: 'Medium',
+        orderId: '#ORD-90529',
+        tags: ['Warranty Claim'],
+        text: 'Siang admin, mau tanya klaim garansi resleting tas yang baru dibeli minggu lalu gimana prosedurnya ya?',
+        attachment: '🎤 Voice_Note_00_18.ogg (18 sec)'
+      }
+    ];
+
+    const simulatedIGPool = [
+      {
+        customerName: 'Siska Amelia',
+        handle: '@siska.amelia99',
+        subType: 'IG Story Reply + DM',
+        priority: 'Urgent',
+        orderId: '#ORD-90511',
+        tags: ['Damaged Box', 'Unboxing Video'],
+        text: 'Kak! Aku baru buka paket #ORD-90511 dan segel botol serumnya agak rembes. Aku ada video unboxing lengkapnya di DM ini ya 😭',
+        attachment: '🎬 Video_Unboxing_IGDM.mp4 (4.2 MB)'
+      },
+      {
+        customerName: 'Rangga Aditya',
+        handle: '@rangga.visuals',
+        subType: 'IG Direct Message',
+        priority: 'High',
+        orderId: '#ORD-90522',
+        tags: ['Restock Inquiry', 'IG Shop'],
+        text: 'Halo min, jaket windbreaker warna Olive yang di post IG terbaru apakah bisa dipesan langsung lewat DM?',
+        attachment: '🖼️ Shared IG Post: Windbreaker Olive Collection'
+      },
+      {
+        customerName: 'Melati Kusuma',
+        handle: '@melatikusuma.id',
+        subType: 'IG Live Comment Mention',
+        priority: 'Medium',
+        orderId: '#ORD-90535',
+        tags: ['IG Live Deal', 'Bundle'],
+        text: 'Kak, tadi waktu IG Live aku udah ketik "MAU BUNDLE A", link checkout khusus harga live-nya dikirim ke DM kan ya?',
+        attachment: null
+      }
+    ];
+
+    let simWAIndex = 0;
+    let simIGIndex = 0;
+    let activeTicketId = tickets[0].id;
+    let channelVolumeChartInstance = null;
+    let statusBreakdownChartInstance = null;
+
+    // =========================================================================
+    // WEB AUDIO SYNTHESIZED NOTIFICATION CHIME
+    // =========================================================================
+    let audioCtx = null;
+    function playNotificationChime(channel) {
+      if (!soundEnabled) return;
+      try {
+        if (!audioCtx) {
+          const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+          if (!AudioContextClass) return;
+          audioCtx = new AudioContextClass();
+        }
+        if (audioCtx.state === 'suspended') {
+          audioCtx.resume();
+        }
+        const now = audioCtx.currentTime;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        if (channel === 'whatsapp') {
+          // Two-tone warm emerald chime
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(587.33, now); // D5
+          osc.frequency.setValueAtTime(880, now + 0.09); // A5
+        } else {
+          // Bright triad pop for Instagram
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(659.25, now); // E5
+          osc.frequency.setValueAtTime(987.77, now + 0.08); // B5
+        }
+
+        gain.gain.setValueAtTime(0.001, now);
+        gain.gain.exponentialRampToValueAtTime(0.14, now + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+
+        osc.start(now);
+        osc.stop(now + 0.29);
+      } catch (e) {
+        // Ignore audio errors if blocked before interaction
+      }
+    }
+
+    // =========================================================================
+    // HELPER: CHANNEL BADGES & PRIORITY STYLING
+    // =========================================================================
+    function getChannelBadgeHTML(channel, size = 'sm') {
+      if (channel === 'whatsapp') {
+        return `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+          <span class="w-1.5 h-1.5 rounded-full bg-[#25D366]"></span>
+          WhatsApp
+        </span>`;
+      }
+      return `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-pink-500/15 text-pink-300 border border-pink-500/30">
+        <span class="w-1.5 h-1.5 rounded-full bg-[#E1306C]"></span>
+        Instagram
+      </span>`;
+    }
+
+    function getPriorityBadgeHTML(priority) {
+      const map = {
+        Urgent: 'bg-rose-500/20 text-rose-300 border-rose-500/40',
+        High: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+        Medium: 'bg-sky-500/20 text-sky-300 border-sky-500/40',
+        Low: 'bg-slate-700/60 text-slate-300 border-slate-600'
+      };
+      return `<span class="px-1.5 py-0.5 rounded text-[10px] font-semibold border ${map[priority] || map.Medium}">${priority}</span>`;
+    }
+
+    function getStatusBadgeHTML(status) {
+      const map = {
+        New: 'bg-rose-500 text-white',
+        Open: 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30',
+        Pending: 'bg-amber-500/20 text-amber-300 border border-amber-500/30',
+        Resolved: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+      };
+      return `<span class="px-2 py-0.5 rounded-md text-[10px] font-semibold ${map[status] || map.Open}">${status}</span>`;
+    }
+
+    function formatNowTime() {
+      const d = new Date();
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    // =========================================================================
+    // RENDER: TOP COUNTERS & NOTIFICATION DRAWER
+    // =========================================================================
+    function updateHeaderAndKPIs() {
+      const total = tickets.length;
+      const waCount = tickets.filter(t => t.channel === 'whatsapp').length;
+      const igCount = tickets.filter(t => t.channel === 'instagram').length;
+      const unreadNotifications = notifications.filter(n => n.unread).length;
+      const unreadTickets = tickets.reduce((acc, t) => acc + (t.unreadCount > 0 ? 1 : 0), 0);
+      const badgeTotal = Math.max(unreadNotifications, unreadTickets);
+
+      document.getElementById('headerCountAll').textContent = total;
+      document.getElementById('headerCountWA').textContent = waCount;
+      document.getElementById('headerCountIG').textContent = igCount;
+
+      const bellBadge = document.getElementById('bellUnreadBadge');
+      bellBadge.textContent = badgeTotal;
+      if (badgeTotal > 0) {
+        bellBadge.classList.remove('hidden');
+      } else {
+        bellBadge.classList.add('hidden');
+      }
+
+      document.getElementById('navTabUnreadBadge').textContent = badgeTotal;
+      document.getElementById('drawerUnreadCount').textContent = `${unreadNotifications} unread`;
+      document.getElementById('kpiUnreadCount').textContent = badgeTotal;
+      document.getElementById('kpiWACount').textContent = waCount;
+      document.getElementById('kpiIGCount').textContent = igCount;
+    }
+
+    function renderNotificationDrawer() {
+      const container = document.getElementById('notifDrawerList');
+      const filtered = notifications.filter(n => {
+        if (activeDrawerFilter === 'unread') return n.unread;
+        if (activeDrawerFilter === 'whatsapp') return n.channel === 'whatsapp';
+        if (activeDrawerFilter === 'instagram') return n.channel === 'instagram';
+        return true;
+      });
+
+      if (filtered.length === 0) {
+        container.innerHTML = `<div class="p-6 text-center text-xs text-slate-400">No notifications matching this filter.</div>`;
+        return;
+      }
+
+      container.innerHTML = filtered.map(n => `
+        <div data-notif-id="${n.id}" data-ticket-id="${n.ticketId}" class="notif-drawer-item p-3 hover:bg-slate-800/70 cursor-pointer transition flex items-start gap-3 ${n.unread ? 'bg-indigo-950/25' : ''}">
+          <div class="w-8 h-8 rounded-xl shrink-0 flex items-center justify-center text-white text-xs font-bold ${n.channel === 'whatsapp' ? 'wa-gradient' : 'ig-gradient'}">
+            ${n.channel === 'whatsapp' ? 'WA' : 'IG'}
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center justify-between gap-1">
+              <span class="text-xs font-semibold text-white truncate">${n.customerName}</span>
+              <span class="text-[10px] text-slate-400 shrink-0">${n.time}</span>
+            </div>
+            <div class="text-[11px] font-medium ${n.channel === 'whatsapp' ? 'text-emerald-400' : 'text-pink-400'} truncate">
+              ${n.trigger}
+            </div>
+            <p class="text-xs text-slate-300 line-clamp-2 mt-0.5">${n.snippet}</p>
+            <div class="flex items-center justify-between mt-1.5">
+              <span class="text-[10px] text-slate-400 font-mono">#${n.ticketId}</span>
+              ${n.unread ? '<span class="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-rose-500 text-white">NEW</span>' : '<span class="text-[10px] text-slate-500">Viewed</span>'}
+            </div>
+          </div>
+        </div>
+      `).join('');
+
+      container.querySelectorAll('.notif-drawer-item').forEach(el => {
+        el.addEventListener('click', () => {
+          const ticketId = el.getAttribute('data-ticket-id');
+          const notifId = el.getAttribute('data-notif-id');
+          const notifObj = notifications.find(item => item.id === notifId);
+          if (notifObj) notifObj.unread = false;
+          selectTicket(ticketId);
+          switchMainView('inbox');
+          document.getElementById('notifDrawer').classList.add('hidden');
+        });
+      });
+    }
+
+    // =========================================================================
+    // RENDER: TICKET QUEUE LIST (LEFT PANE)
+    // =========================================================================
+    function getFilteredTickets() {
+      const priorityWeight = { Urgent: 4, High: 3, Medium: 2, Low: 1 };
+      return tickets
+        .filter(t => {
+          if (activeChannelFilter === 'whatsapp' && t.channel !== 'whatsapp') return false;
+          if (activeChannelFilter === 'instagram' && t.channel !== 'instagram') return false;
+          if (activeChannelFilter === 'unread' && t.unreadCount === 0) return false;
+          if (activeStatusFilter !== 'all' && t.status !== activeStatusFilter) return false;
+          if (searchQuery.trim() !== '') {
+            const q = searchQuery.toLowerCase();
+            const matchId = t.id.toLowerCase().includes(q);
+            const matchName = t.customerName.toLowerCase().includes(q);
+            const matchHandle = t.handle.toLowerCase().includes(q);
+            const matchMsg = t.messages.some(m => m.text.toLowerCase().includes(q));
+            return matchId || matchName || matchHandle || matchMsg;
+          }
+          return true;
+        })
+        .sort((a, b) => {
+          if (sortMode === 'unread') {
+            if (b.unreadCount !== a.unreadCount) return b.unreadCount - a.unreadCount;
+          } else if (sortMode === 'priority') {
+            if (priorityWeight[b.priority] !== priorityWeight[a.priority]) {
+              return priorityWeight[b.priority] - priorityWeight[a.priority];
+            }
+          }
+          return b.timestampMs - a.timestampMs;
+        });
+    }
+
+    function renderTicketQueue() {
+      const listEl = document.getElementById('ticketQueueContainer');
+      const filtered = getFilteredTickets();
+      document.getElementById('queueShowingLabel').textContent = `Showing ${filtered.length} of ${tickets.length} tickets`;
+
+      if (filtered.length === 0) {
+        listEl.innerHTML = `
+          <div class="p-8 text-center space-y-2">
+            <div class="text-sm font-semibold text-slate-300">No matching tickets</div>
+            <p class="text-xs text-slate-500">Try clearing your search filter or simulate a new incoming WhatsApp/Instagram ticket above.</p>
+          </div>
+        `;
+        return;
+      }
+
+      listEl.innerHTML = filtered.map(t => {
+        const isSelected = t.id === activeTicketId;
+        const lastMsg = t.messages[t.messages.length - 1];
+        const slaChip = t.status === 'Resolved'
+          ? `<span class="text-[10px] text-emerald-400 font-medium">✓ Resolved</span>`
+          : t.slaRemainingMin > 0
+            ? `<span class="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-rose-500/15 text-rose-300 border border-rose-500/30">⏱ SLA ${t.slaRemainingMin}m</span>`
+            : `<span class="text-[10px] text-slate-400">Responded</span>`;
+
+        return `
+          <div data-ticket-card="${t.id}" class="ticket-card p-3.5 cursor-pointer transition relative ${
+            isSelected
+              ? 'bg-indigo-950/50 border-l-4 border-l-indigo-500'
+              : t.unreadCount > 0
+                ? 'bg-slate-900/90 hover:bg-slate-800/80 border-l-4 border-l-rose-500'
+                : 'hover:bg-slate-800/50'
+          }">
+            <div class="flex items-start justify-between gap-2">
+              <div class="flex items-center gap-2 min-w-0">
+                <div class="relative shrink-0">
+                  <div class="w-9 h-9 rounded-xl ${t.avatarBg} flex items-center justify-center text-xs font-bold text-white">
+                    ${t.initials}
+                  </div>
+                  <span class="absolute -bottom-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold text-white border border-slate-900 ${
+                    t.channel === 'whatsapp' ? 'bg-[#25D366]' : 'bg-[#E1306C]'
+                  }">
+                    ${t.channel === 'whatsapp' ? 'W' : 'I'}
+                  </span>
+                </div>
+                <div class="min-w-0">
+                  <div class="flex items-center gap-1.5">
+                    <span class="text-xs font-bold text-white truncate">${t.customerName}</span>
+                    ${t.unreadCount > 0 ? `<span class="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-rose-500 text-white">${t.unreadCount} new</span>` : ''}
+                  </div>
+                  <div class="text-[11px] text-slate-400 truncate">${t.handle}</div>
+                </div>
+              </div>
+              <div class="text-right shrink-0">
+                <div class="text-[10px] text-slate-400">${t.createdAt}</div>
+                <div class="text-[10px] font-mono text-slate-500 mt-0.5">#${t.id}</div>
+              </div>
+            </div>
+
+            <p class="text-xs ${t.unreadCount > 0 ? 'text-slate-100 font-medium' : 'text-slate-400'} line-clamp-2 mt-2">
+              ${lastMsg ? lastMsg.text : ''}
+            </p>
+
+            <div class="flex items-center justify-between gap-2 mt-2.5 pt-2 border-t border-slate-800/60">
+              <div class="flex items-center gap-1.5">
+                ${getChannelBadgeHTML(t.channel)}
+                ${getPriorityBadgeHTML(t.priority)}
+              </div>
+              <div class="flex items-center gap-1.5">
+                ${slaChip}
+                ${getStatusBadgeHTML(t.status)}
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      listEl.querySelectorAll('.ticket-card').forEach(card => {
+        card.addEventListener('click', () => {
+          const id = card.getAttribute('data-ticket-card');
+          selectTicket(id);
+        });
+      });
+    }
+
+    // =========================================================================
+    // RENDER: ACTIVE TICKET CONVERSATION & RIGHT PANE
+    // =========================================================================
+    function selectTicket(ticketId) {
+      activeTicketId = ticketId;
+      const ticket = tickets.find(t => t.id === ticketId);
+      if (!ticket) return;
+
+      // Clear unread badge on ticket & linked notifications
+      ticket.unreadCount = 0;
+      notifications.forEach(n => {
+        if (n.ticketId === ticketId) n.unread = false;
+      });
+
+      updateHeaderAndKPIs();
+      renderTicketQueue();
+      renderNotificationDrawer();
+      renderActiveConversation(ticket);
+      renderRightContextPane(ticket);
+      renderAuditLogTable();
+    }
+
+    function renderActiveConversation(ticket) {
+      const headerEl = document.getElementById('convHeader');
+      headerEl.innerHTML = `
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="w-10 h-10 rounded-xl ${ticket.avatarBg} flex items-center justify-center text-sm font-bold text-white shrink-0">
+            ${ticket.initials}
+          </div>
+          <div class="min-w-0">
+            <div class="flex items-center gap-2">
+              <h2 class="text-sm font-bold text-white truncate">${ticket.customerName}</h2>
+              <span class="text-xs font-mono text-indigo-400">#${ticket.id}</span>
+              ${getChannelBadgeHTML(ticket.channel)}
+              ${getStatusBadgeHTML(ticket.status)}
+            </div>
+            <div class="text-xs text-slate-400 flex items-center gap-2 truncate mt-0.5">
+              <span>${ticket.handle}</span>
+              <span>•</span>
+              <span>${ticket.subType}</span>
+              <span>•</span>
+              <span class="text-slate-300 font-medium">Order ${ticket.orderId}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2 shrink-0">
+          <button id="headerMarkUnreadBtn" type="button" class="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-medium text-slate-300 transition">
+            Mark Unread
+          </button>
+          <button id="headerResolveToggleBtn" type="button" class="px-3 py-1.5 rounded-xl ${
+            ticket.status === 'Resolved'
+              ? 'bg-slate-800 text-slate-300 border border-slate-700'
+              : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+          } text-xs font-semibold transition">
+            ${ticket.status === 'Resolved' ? 'Reopen Ticket' : '✓ Resolve Ticket'}
+          </button>
+        </div>
+      `;
+
+      document.getElementById('headerMarkUnreadBtn').addEventListener('click', () => {
+        ticket.unreadCount = 1;
+        updateHeaderAndKPIs();
+        renderTicketQueue();
+        showToast({
+          channel: ticket.channel,
+          title: `Marked #${ticket.id} as Unread`,
+          subtitle: `${ticket.customerName} (${ticket.handle})`,
+          ticketId: ticket.id
+        });
+      });
+
+      document.getElementById('headerResolveToggleBtn').addEventListener('click', () => {
+        ticket.status = ticket.status === 'Resolved' ? 'Open' : 'Resolved';
+        if (ticket.status === 'Resolved') ticket.slaRemainingMin = 0;
+        renderTicketQueue();
+        renderActiveConversation(ticket);
+        renderRightContextPane(ticket);
+        updateCharts();
+      });
+
+      // Channel Banner
+      const bannerEl = document.getElementById('convChannelBanner');
+      const isWA = ticket.channel === 'whatsapp';
+      bannerEl.innerHTML = `
+        <div class="flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full ${isWA ? 'bg-[#25D366]' : 'bg-[#E1306C]'}"></span>
+          <span class="text-slate-300 font-medium">${ticket.windowNote}</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-slate-400">Assigned to: <strong class="text-slate-200">${ticket.assignee}</strong></span>
+        </div>
+      `;
+
+      // Composer indicator
+      document.getElementById('composerChannelIndicator').textContent =
+        composerMode === 'note'
+          ? '🔒 Private Note (Visible only to support team)'
+          : isWA
+            ? '🟢 Replying via WhatsApp Official Cloud API'
+            : '🟣 Replying via Instagram Direct Graph API';
+
+      // Messages list
+      const msgContainer = document.getElementById('convMessagesList');
+      msgContainer.innerHTML = ticket.messages.map(m => {
+        if (m.sender === 'customer') {
+          return `
+            <div class="flex items-start gap-3 max-w-2xl">
+              <div class="w-8 h-8 rounded-xl ${ticket.avatarBg} flex items-center justify-center text-xs font-bold text-white shrink-0 mt-0.5">
+                ${ticket.initials}
+              </div>
+              <div class="space-y-1">
+                <div class="flex items-center gap-2">
+                  <span class="text-xs font-semibold text-white">${ticket.customerName}</span>
+                  <span class="text-[10px] text-slate-400">${m.time}</span>
+                  <span class="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-400">${isWA ? 'WhatsApp' : 'Instagram'}</span>
+                </div>
+                <div class="p-3.5 rounded-2xl rounded-tl-sm bg-slate-900 border border-slate-800 text-xs sm:text-sm text-slate-100 leading-relaxed">
+                  <p>${m.text}</p>
+                  ${m.attachment ? `
+                    <div class="mt-2.5 p-2 rounded-xl bg-slate-950 border border-slate-800 flex items-center gap-2 text-xs text-indigo-300">
+                      <span>${m.attachment}</span>
+                    </div>
+                  ` : ''}
+                </div>
+              </div>
+            </div>
+          `;
+        }
+
+        if (m.sender === 'note') {
+          return `
+            <div class="flex justify-center">
+              <div class="max-w-xl w-full p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-200 flex items-start gap-2.5">
+                <span class="text-amber-400 font-bold">🔒 Internal Note</span>
+                <div class="flex-1">
+                  <span class="font-semibold text-amber-300">${m.author || 'Agent'}:</span> ${m.text}
+                </div>
+                <span class="text-[10px] text-amber-400/80 shrink-0">${m.time}</span>
+              </div>
+            </div>
+          `;
+        }
+
+        return `
+          <div class="flex items-start justify-end gap-3">
+            <div class="space-y-1 max-w-2xl text-right">
+              <div class="flex items-center justify-end gap-2">
+                <span class="text-[10px] text-slate-400">${m.time} • Delivered</span>
+                <span class="text-xs font-semibold text-indigo-300">${m.author || 'Alex Pratama (You)'}</span>
+              </div>
+              <div class="p-3.5 rounded-2xl rounded-tr-sm bg-indigo-600 text-xs sm:text-sm text-white text-left leading-relaxed shadow">
+                <p>${m.text}</p>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      msgContainer.scrollTop = msgContainer.scrollHeight;
+    }
+
+    function renderRightContextPane(ticket) {
+      const cardEl = document.getElementById('rightCustomerCard');
+      cardEl.innerHTML = `
+        <div class="flex items-center gap-3">
+          <div class="w-11 h-11 rounded-2xl ${ticket.avatarBg} flex items-center justify-center text-sm font-bold text-white">
+            ${ticket.initials}
+          </div>
+          <div class="min-w-0">
+            <h3 class="text-sm font-bold text-white truncate">${ticket.customerName}</h3>
+            <p class="text-xs text-slate-400 truncate">${ticket.handle}</p>
+            <span class="inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
+              ${ticket.tier}
+            </span>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800/80 text-xs">
+          <div class="p-2 rounded-xl bg-slate-900">
+            <span class="text-[10px] text-slate-400 block">Linked Order</span>
+            <span class="font-mono font-semibold text-slate-200">${ticket.orderId}</span>
+          </div>
+          <div class="p-2 rounded-xl bg-slate-900">
+            <span class="text-[10px] text-slate-400 block">Channel Source</span>
+            <span class="font-semibold ${ticket.channel === 'whatsapp' ? 'text-emerald-400' : 'text-pink-400'}">
+              ${ticket.channel === 'whatsapp' ? 'WhatsApp API' : 'Instagram Graph'}
+            </span>
+          </div>
+        </div>
+      `;
+
+      document.getElementById('propStatusSelect').value = ticket.status;
+      document.getElementById('propPrioritySelect').value = ticket.priority;
+      document.getElementById('propAssigneeSelect').value = ticket.assignee;
+
+      const tagsEl = document.getElementById('rightTagsContainer');
+      tagsEl.innerHTML = ticket.tags.map((tag, idx) => `
+        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-900 border border-slate-700 text-[11px] text-slate-300">
+          <span>${tag}</span>
+          <button type="button" data-remove-tag="${idx}" class="remove-tag-btn text-slate-500 hover:text-rose-400">×</button>
+        </span>
+      `).join('');
+
+      tagsEl.querySelectorAll('.remove-tag-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const i = parseInt(btn.getAttribute('data-remove-tag'), 10);
+          ticket.tags.splice(i, 1);
+          renderRightContextPane(ticket);
+        });
+      });
+    }
+
+    // =========================================================================
+    // LIVE TOAST BANNER & SIMULATED INCOMING TICKETS
+    // =========================================================================
+    function showToast({ channel, title, subtitle, snippet, ticketId }) {
+      if (!toastEnabled) return;
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      const isWA = channel === 'whatsapp';
+
+      toast.className = 'toast-enter pointer-events-auto p-3.5 rounded-2xl bg-slate-900/95 backdrop-blur border border-slate-700 shadow-2xl flex items-start gap-3';
+      toast.innerHTML = `
+        <div class="w-9 h-9 rounded-xl shrink-0 flex items-center justify-center text-white text-xs font-bold ${isWA ? 'wa-gradient' : 'ig-gradient'}">
+          ${isWA ? 'WA' : 'IG'}
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-xs font-bold text-white truncate">${title}</span>
+            <span class="text-[10px] px-1.5 py-0.5 rounded bg-rose-500 text-white font-bold">LIVE</span>
+          </div>
+          <p class="text-[11px] font-medium ${isWA ? 'text-emerald-400' : 'text-pink-400'} truncate">${subtitle}</p>
+          ${snippet ? `<p class="text-xs text-slate-300 line-clamp-2 mt-1">${snippet}</p>` : ''}
+          <div class="flex items-center gap-2 mt-2">
+            <button type="button" class="toast-open-btn px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-[11px] font-semibold text-white transition">
+              Open Ticket #${ticketId}
+            </button>
+            <button type="button" class="toast-dismiss-btn px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] text-slate-400 hover:text-white transition">
+              Dismiss
+            </button>
+          </div>
+        </div>
+      `;
+
+      toast.querySelector('.toast-open-btn').addEventListener('click', () => {
+        selectTicket(ticketId);
+        switchMainView('inbox');
+        toast.remove();
+      });
+      toast.querySelector('.toast-dismiss-btn').addEventListener('click', () => {
+        toast.remove();
+      });
+
+      container.prepend(toast);
+      setTimeout(() => {
+        if (toast.parentNode) toast.remove();
+      }, 6500);
+    }
+
+    function triggerIncomingTicket(channel, customData = null) {
+      const isWA = channel === 'whatsapp';
+      const template = customData || (isWA
+        ? simulatedWAPool[simWAIndex++ % simulatedWAPool.length]
+        : simulatedIGPool[simIGIndex++ % simulatedIGPool.length]);
+
+      const newId = `TKT-${ticketCounter++}`;
+      const initials = template.customerName
+        .split(' ')
+        .map(w => w[0])
+        .join('')
+        .slice(0, 2)
+        .toUpperCase();
+
+      const nowStr = formatNowTime();
+      const newTicket = {
+        id: newId,
+        channel,
+        subType: template.subType || (isWA ? 'WA Business Cloud API' : 'IG Direct Message'),
+        customerName: template.customerName,
+        handle: template.handle,
+        avatarBg: isWA ? 'bg-emerald-600' : 'bg-pink-600',
+        initials,
+        tier: 'Verified Incoming',
+        orderId: template.orderId || `#ORD-${Math.floor(90550 + Math.random() * 400)}`,
+        status: 'New',
+        priority: template.priority || 'High',
+        unreadCount: 1,
+        slaRemainingMin: 15,
+        assignee: 'Unassigned',
+        tags: template.tags ? [...template.tags] : [isWA ? 'WhatsApp Inbound' : 'Instagram Inbound'],
+        createdAt: 'Just now',
+        timestampMs: Date.now(),
+        windowNote: isWA
+          ? '24h WhatsApp Service Window Active (24h 00m left)'
+          : 'Instagram Direct Webhook • Active Session',
+        messages: [
+          {
+            sender: 'customer',
+            text: template.text,
+            time: nowStr,
+            attachment: template.attachment || null
+          }
+        ]
+      };
+
+      tickets.unshift(newTicket);
+      if (typeof syncTicketToSupabase === 'function') syncTicketToSupabase(newTicket);
+
+      const newNotif = {
+        id: `NTF-${Date.now().toString().slice(-4)}`,
+        ticketId: newId,
+        channel,
+        trigger: isWA ? `WhatsApp Webhook (${newTicket.subType})` : `Instagram Webhook (${newTicket.subType})`,
+        customerName: newTicket.customerName,
+        handle: newTicket.handle,
+        snippet: newTicket.messages[0].text,
+        priority: newTicket.priority,
+        time: nowStr,
+        unread: true
+      };
+      notifications.unshift(newNotif);
+
+      playNotificationChime(channel);
+      updateHeaderAndKPIs();
+      renderTicketQueue();
+      renderNotificationDrawer();
+      renderAuditLogTable();
+      updateCharts();
+
+      showToast({
+        channel,
+        title: `New ${isWA ? 'WhatsApp' : 'Instagram'} Ticket #${newId}`,
+        subtitle: `${newTicket.customerName} (${newTicket.handle})`,
+        snippet: newTicket.messages[0].text,
+        ticketId: newId
+      });
+    }
+
+    // =========================================================================
+    // SEND REPLY / INTERNAL NOTE & SIMULATE FOLLOW-UP
+    // =========================================================================
+    function handleSendMessage(resolveAfter = false) {
+      const textarea = document.getElementById('replyTextarea');
+      const text = textarea.value.trim();
+      const ticket = tickets.find(t => t.id === activeTicketId);
+      if (!ticket) return;
+
+      if (!text && !resolveAfter) return;
+
+      if (text) {
+        ticket.messages.push({
+          sender: composerMode === 'note' ? 'note' : 'agent',
+          author: 'Alex Pratama (You)',
+          text,
+          time: formatNowTime()
+        });
+        textarea.value = '';
+      }
+
+      if (autoAssignOnReply && ticket.assignee === 'Unassigned') {
+        ticket.assignee = 'Alex Pratama (You)';
+      }
+
+      if (resolveAfter) {
+        ticket.status = 'Resolved';
+        ticket.slaRemainingMin = 0;
+      } else if (composerMode === 'reply' && ticket.status === 'New') {
+        ticket.status = 'Open';
+        ticket.slaRemainingMin = 0;
+      }
+
+      ticket.unreadCount = 0;
+      if (typeof syncTicketToSupabase === 'function') syncTicketToSupabase(ticket);
+      updateHeaderAndKPIs();
+      renderTicketQueue();
+      renderActiveConversation(ticket);
+      renderRightContextPane(ticket);
+      updateCharts();
+    }
+
+    function simulateCustomerFollowUpOnActiveTicket() {
+      const ticket = tickets.find(t => t.id === activeTicketId);
+      if (!ticket) return;
+
+      const followUps = [
+        'Baik kak, terima kasih infonya! Saya tunggu update resinya ya 🙏',
+        'Tambahan kak, untuk nomor telepon penerima tetap sama dengan yang terdaftar di akun ya.',
+        'Kak, apakah pesanan saya bisa dikirim hari ini juga?'
+      ];
+      const msgText = followUps[Math.floor(Math.random() * followUps.length)];
+      const nowStr = formatNowTime();
+
+      ticket.messages.push({
+        sender: 'customer',
+        text: msgText,
+        time: nowStr
+      });
+      ticket.createdAt = 'Just now';
+      ticket.timestampMs = Date.now();
+      if (ticket.status === 'Resolved') ticket.status = 'Open';
+
+      notifications.unshift({
+        id: `NTF-${Date.now().toString().slice(-4)}`,
+        ticketId: ticket.id,
+        channel: ticket.channel,
+        trigger: `Customer Follow-up Reply (#${ticket.id})`,
+        customerName: ticket.customerName,
+        handle: ticket.handle,
+        snippet: msgText,
+        priority: ticket.priority,
+        time: nowStr,
+        unread: true
+      });
+
+      playNotificationChime(ticket.channel);
+      updateHeaderAndKPIs();
+      renderTicketQueue();
+      renderNotificationDrawer();
+      renderActiveConversation(ticket);
+      renderAuditLogTable();
+
+      showToast({
+        channel: ticket.channel,
+        title: `New Reply on #${ticket.id}`,
+        subtitle: `${ticket.customerName} (${ticket.handle})`,
+        snippet: msgText,
+        ticketId: ticket.id
+      });
+    }
+
+    // =========================================================================
+    // VIEW 2: NOTIFICATION AUDIT LOG TABLE & CHARTS
+    // =========================================================================
+    function renderAuditLogTable() {
+      const tbody = document.getElementById('notifAuditTableBody');
+      const filterVal = document.getElementById('logChannelFilter').value;
+
+      const rows = notifications.filter(n => {
+        if (filterVal === 'whatsapp') return n.channel === 'whatsapp';
+        if (filterVal === 'instagram') return n.channel === 'instagram';
+        return true;
+      });
+
+      tbody.innerHTML = rows.map(n => `
+        <tr class="hover:bg-slate-800/50 transition ${n.unread ? 'bg-indigo-950/20' : ''}">
+          <td class="py-3 px-4">
+            ${n.unread
+              ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500 text-white">UNREAD</span>'
+              : '<span class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-800 text-slate-400">Read</span>'}
+          </td>
+          <td class="py-3 px-4 font-mono text-slate-300">${n.time}</td>
+          <td class="py-3 px-4">
+            <div class="flex items-center gap-2">
+              ${getChannelBadgeHTML(n.channel)}
+              <span class="text-slate-300 font-medium">${n.trigger}</span>
+            </div>
+          </td>
+          <td class="py-3 px-4">
+            <div class="font-semibold text-white">${n.customerName}</div>
+            <div class="text-[11px] text-slate-400">${n.handle}</div>
+          </td>
+          <td class="py-3 px-4 text-slate-300 max-w-xs truncate">${n.snippet}</td>
+          <td class="py-3 px-4">${getPriorityBadgeHTML(n.priority)}</td>
+          <td class="py-3 px-4 text-right">
+            <button type="button" data-jump-ticket="${n.ticketId}" data-jump-notif="${n.id}" class="audit-jump-btn px-2.5 py-1 rounded-lg bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white border border-indigo-500/30 text-xs font-semibold transition">
+              Open #${n.ticketId}
+            </button>
+          </td>
+        </tr>
+      `).join('');
+
+      tbody.querySelectorAll('.audit-jump-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const tId = btn.getAttribute('data-jump-ticket');
+          const nId = btn.getAttribute('data-jump-notif');
+          const nObj = notifications.find(item => item.id === nId);
+          if (nObj) nObj.unread = false;
+          selectTicket(tId);
+          switchMainView('inbox');
+        });
+      });
+    }
+
+    function initCharts() {
+      const volCtx = document.getElementById('channelVolumeChart').getContext('2d');
+      channelVolumeChartInstance = new Chart(volCtx, {
+        type: 'bar',
+        data: {
+          labels: ['03:00', '04:00', '05:00', '06:00', '07:00', '08:00 (Now)'],
+          datasets: [
+            {
+              label: 'WhatsApp Business',
+              data: [2, 3, 5, 7, 11, tickets.filter(t => t.channel === 'whatsapp').length + 8],
+              backgroundColor: '#25D366',
+              borderRadius: 6
+            },
+            {
+              label: 'Instagram Direct & Story',
+              data: [1, 4, 6, 8, 9, tickets.filter(t => t.channel === 'instagram').length + 7],
+              backgroundColor: '#E1306C',
+              borderRadius: 6
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { labels: { color: '#cbd5e1', font: { size: 11 } } }
+          },
+          scales: {
+            x: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(148,163,184,0.1)' } },
+            y: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(148,163,184,0.1)' }, beginAtZero: true }
+          }
+        }
+      });
+
+      const statusCtx = document.getElementById('statusBreakdownChart').getContext('2d');
+      statusBreakdownChartInstance = new Chart(statusCtx, {
+        type: 'doughnut',
+        data: {
+          labels: ['New (Unread)', 'Open', 'Pending', 'Resolved'],
+          datasets: [{
+            data: getStatusCountsArray(),
+            backgroundColor: ['#f43f5e', '#6366f1', '#f59e0b', '#10b981'],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: '68%',
+          plugins: {
+            legend: { position: 'right', labels: { color: '#cbd5e1', font: { size: 12 } } }
+          }
+        }
+      });
+    }
+
+    function getStatusCountsArray() {
+      return [
+        tickets.filter(t => t.status === 'New').length,
+        tickets.filter(t => t.status === 'Open').length,
+        tickets.filter(t => t.status === 'Pending').length,
+        tickets.filter(t => t.status === 'Resolved').length
+      ];
+    }
+
+    function updateCharts() {
+      if (!channelVolumeChartInstance || !statusBreakdownChartInstance) return;
+      channelVolumeChartInstance.data.datasets[0].data[5] = tickets.filter(t => t.channel === 'whatsapp').length + 8;
+      channelVolumeChartInstance.data.datasets[1].data[5] = tickets.filter(t => t.channel === 'instagram').length + 7;
+      channelVolumeChartInstance.update();
+
+      statusBreakdownChartInstance.data.datasets[0].data = getStatusCountsArray();
+      statusBreakdownChartInstance.update();
+    }
+
+    // =========================================================================
+    // MAIN VIEW SWITCHER (INBOX WORKSPACE vs NOTIFICATION & SLA VIEW)
+    // =========================================================================
+    function switchMainView(view) {
+      const inboxEl = document.getElementById('inboxWorkspaceView');
+      const notifEl = document.getElementById('notificationAnalyticsView');
+      const tabInbox = document.getElementById('viewTabInbox');
+      const tabNotif = document.getElementById('viewTabNotifications');
+      const mobInbox = document.getElementById('mobileViewInboxBtn');
+      const mobNotif = document.getElementById('mobileViewNotifBtn');
+
+      if (view === 'inbox') {
+        inboxEl.classList.remove('hidden');
+        notifEl.classList.add('hidden');
+        tabInbox.className = 'px-3 py-1.5 rounded-lg text-xs font-semibold transition-all bg-indigo-600 text-white shadow';
+        tabNotif.className = 'px-3 py-1.5 rounded-lg text-xs font-semibold transition-all text-slate-400 hover:text-white flex items-center gap-1.5';
+        mobInbox.className = 'flex-1 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white';
+        mobNotif.className = 'flex-1 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300';
+      } else {
+        inboxEl.classList.add('hidden');
+        notifEl.classList.remove('hidden');
+        tabNotif.className = 'px-3 py-1.5 rounded-lg text-xs font-semibold transition-all bg-indigo-600 text-white shadow flex items-center gap-1.5';
+        tabInbox.className = 'px-3 py-1.5 rounded-lg text-xs font-semibold transition-all text-slate-400 hover:text-white';
+        mobNotif.className = 'flex-1 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white';
+        mobInbox.className = 'flex-1 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300';
+        updateCharts();
+        renderAuditLogTable();
+      }
+    }
+
+    // =========================================================================
+    // WIRE ALL EVENT LISTENERS ON LOAD
+    // =========================================================================
+    window.addEventListener('DOMContentLoaded', () => {
+      updateHeaderAndKPIs();
+      renderTicketQueue();
+      renderNotificationDrawer();
+      renderActiveConversation(tickets[0]);
+      renderRightContextPane(tickets[0]);
+      renderAuditLogTable();
+      initCharts();
+
+      // View mode tabs
+      document.getElementById('viewTabInbox').addEventListener('click', () => switchMainView('inbox'));
+      document.getElementById('viewTabNotifications').addEventListener('click', () => switchMainView('notifications'));
+      document.getElementById('mobileViewInboxBtn').addEventListener('click', () => switchMainView('inbox'));
+      document.getElementById('mobileViewNotifBtn').addEventListener('click', () => switchMainView('notifications'));
+
+      // Full-Stack Persistence (LocalStorage + Optional Live Supabase PostgreSQL + Realtime)
+      let supabaseClient = null;
+      const SQL_SCHEMA_TEXT = `-- Run this in Supabase SQL Editor (https://supabase.com/dashboard)
+create table if not exists public.tickets (
+  id text primary key,
+  channel text not null check (channel in ('whatsapp', 'instagram')),
+  sub_type text default 'Cloud Webhook',
+  customer_name text not null,
+  handle text not null,
+  avatar_bg text default 'bg-emerald-600',
+  initials text default 'CU',
+  tier text default 'Verified Customer',
+  order_id text default '#ORD-90500',
+  status text default 'New',
+  priority text default 'High',
+  unread_count int default 1,
+  sla_remaining_min int default 15,
+  assignee text default 'Unassigned',
+  tags jsonb default '[]'::jsonb,
+  window_note text default '24h Service Window Active',
+  messages jsonb default '[]'::jsonb,
+  created_at timestamptz default now()
+);
+
+alter table public.tickets enable row level security;
+create policy "Allow public read/write for demo" on public.tickets for all using (true) with check (true);
+alter publication supabase_realtime add table public.tickets;`;
+
+      function saveTicketsToLocal() {
+        try {
+          localStorage.setItem('omnipulse_tickets_v1', JSON.stringify(tickets));
+        } catch (e) {}
+      }
+
+      async function syncTicketToSupabase(ticket) {
+        saveTicketsToLocal();
+        if (!supabaseClient) return;
+        try {
+          await supabaseClient.from('tickets').upsert({
+            id: ticket.id,
+            channel: ticket.channel,
+            sub_type: ticket.subType,
+            customer_name: ticket.customerName,
+            handle: ticket.handle,
+            avatar_bg: ticket.avatarBg,
+            initials: ticket.initials,
+            tier: ticket.tier,
+            order_id: ticket.orderId,
+            status: ticket.status,
+            priority: ticket.priority,
+            unread_count: ticket.unreadCount,
+            sla_remaining_min: ticket.slaRemainingMin,
+            assignee: ticket.assignee,
+            tags: ticket.tags,
+            window_note: ticket.windowNote,
+            messages: ticket.messages
+          });
+        } catch (e) {}
+      }
+
+      document.getElementById('copySqlSchemaBtn').addEventListener('click', () => {
+        const btn = document.getElementById('copySqlSchemaBtn');
+        const orig = btn.textContent;
+        const copyFallback = (str) => {
+          const ta = document.createElement('textarea');
+          ta.value = str;
+          document.body.appendChild(ta);
+          ta.select();
+          try { document.execCommand('copy'); } catch (e) {}
+          ta.remove();
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(SQL_SCHEMA_TEXT).catch(() => copyFallback(SQL_SCHEMA_TEXT));
+        } else {
+          copyFallback(SQL_SCHEMA_TEXT);
+        }
+        btn.textContent = '✓ SQL Copied to Clipboard!';
+        setTimeout(() => { btn.textContent = orig; }, 2000);
+      });
+
+      document.getElementById('connectSupabaseBtn').addEventListener('click', async () => {
+        const url = document.getElementById('cfgSupabaseUrl').value.trim();
+        const key = document.getElementById('cfgSupabaseKey').value.trim();
+        const badge = document.getElementById('supabaseConnBadge');
+        const headerText = document.getElementById('webhookStatusText');
+        if (!url || !key || !window.supabase) {
+          badge.textContent = 'Enter Valid URL & Key';
+          badge.className = 'px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-500/20 text-rose-300 border border-rose-500/30';
+          return;
+        }
+        try {
+          supabaseClient = window.supabase.createClient(url, key);
+          badge.textContent = 'Connected to Supabase DB';
+          badge.className = 'px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
+          headerText.textContent = 'Supabase DB Live';
+          try {
+            localStorage.setItem('omnipulse_sb_url', url);
+            localStorage.setItem('omnipulse_sb_key', key);
+          } catch (e) {}
+
+          // Push current initial tickets if DB is empty, and subscribe to Realtime inserts
+          for (const t of tickets.slice(0, 4)) {
+            await syncTicketToSupabase(t);
+          }
+
+          supabaseClient
+            .channel('public:tickets')
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tickets' }, (payload) => {
+              const row = payload.new;
+              if (row && !tickets.some(t => t.id === row.id)) {
+                const msgList = Array.isArray(row.messages) && row.messages.length > 0
+                  ? row.messages
+                  : [{ sender: 'customer', text: 'New ticket created in Supabase', time: formatNowTime() }];
+                triggerIncomingTicket(row.channel || 'whatsapp', {
+                  customerName: row.customer_name || 'Customer',
+                  handle: row.handle || '+62812000000',
+                  priority: row.priority || 'High',
+                  subType: row.sub_type || 'Supabase Realtime',
+                  text: msgList[msgList.length - 1].text,
+                  tags: Array.isArray(row.tags) ? row.tags : ['Supabase Live']
+                });
+              }
+            })
+            .subscribe();
+        } catch (err) {
+          badge.textContent = 'Connection Error';
+        }
+      });
+
+      // Webhook Connection Modal
+      const webhookModal = document.getElementById('webhookConfigModal');
+      document.getElementById('openWebhookModalBtn').addEventListener('click', () => {
+        webhookModal.classList.remove('hidden');
+      });
+      document.getElementById('closeWebhookModalBtn').addEventListener('click', () => {
+        webhookModal.classList.add('hidden');
+      });
+      document.getElementById('doneWebhookModalBtn').addEventListener('click', () => {
+        webhookModal.classList.add('hidden');
+      });
+
+      // Connect to Self-Hosted Server-Sent Events (SSE) stream
+      let sseSource = null;
+      document.getElementById('connectSelfServerBtn').addEventListener('click', () => {
+        const baseUrl = document.getElementById('cfgBackendUrl').value.trim().replace(/\/$/, '');
+        const badge = document.getElementById('liveStreamConnBadge');
+        const headerText = document.getElementById('webhookStatusText');
+        if (sseSource) {
+          sseSource.close();
+          sseSource = null;
+        }
+        badge.textContent = `Connecting...`;
+        badge.className = 'px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30';
+        try {
+          sseSource = new EventSource(`${baseUrl}/events`);
+          sseSource.onopen = () => {
+            badge.textContent = `Connected: ${baseUrl}/events`;
+            badge.className = 'px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
+            headerText.textContent = 'Webhook Connected';
+          };
+          sseSource.onmessage = (event) => {
+            try {
+              const payload = JSON.parse(event.data);
+              if (payload && payload.channel) {
+                triggerIncomingTicket(payload.channel, payload);
+              }
+            } catch (err) {}
+          };
+          sseSource.onerror = () => {
+            badge.textContent = 'Server Offline (Using Simulator)';
+            badge.className = 'px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-500/20 text-rose-300 border border-rose-500/30';
+            if (sseSource) sseSource.close();
+          };
+        } catch (err) {
+          badge.textContent = 'Server Offline (Using Simulator)';
+        }
+      });
+
+      document.getElementById('testLocalWebhookBtn').addEventListener('click', () => {
+        const baseUrl = document.getElementById('cfgBackendUrl').value.trim().replace(/\/$/, '');
+        const samplePayload = {
+          channel: 'whatsapp',
+          subType: 'Webhook Test (POST /webhook/simulate)',
+          customerName: 'Budi Santoso (Webhook)',
+          handle: '+62 811-9922-8800',
+          priority: 'Urgent',
+          text: 'Halo kak! Ini pesan tes dari koneksi Webhook Anda 🚀'
+        };
+        const targetEndpoint = new URL('/webhook/simulate', baseUrl.startsWith('http') ? baseUrl : `http://${baseUrl}`).href;
+        fetch(targetEndpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(samplePayload)
+        }).catch(() => {
+          triggerIncomingTicket('whatsapp', samplePayload);
+        });
+        webhookModal.classList.add('hidden');
+      });
+
+      // Header quick channel filter buttons
+      document.getElementById('quickFilterAll').addEventListener('click', () => setChannelFilter('all'));
+      document.getElementById('quickFilterWA').addEventListener('click', () => setChannelFilter('whatsapp'));
+      document.getElementById('quickFilterIG').addEventListener('click', () => setChannelFilter('instagram'));
+
+      // Simulate Incoming Ticket buttons
+      document.getElementById('simWhatsAppBtn').addEventListener('click', () => triggerIncomingTicket('whatsapp'));
+      document.getElementById('simInstagramBtn').addEventListener('click', () => triggerIncomingTicket('instagram'));
+      document.getElementById('simBurstBtn').addEventListener('click', () => {
+        const nextChannel = Math.random() > 0.5 ? 'whatsapp' : 'instagram';
+        triggerIncomingTicket(nextChannel);
+      });
+
+      // Auto-Stream toggle
+      document.getElementById('autoStreamBtn').addEventListener('click', () => {
+        const dot = document.getElementById('autoStreamDot');
+        const label = document.getElementById('autoStreamLabel');
+        if (autoStreamInterval) {
+          clearInterval(autoStreamInterval);
+          autoStreamInterval = null;
+          dot.className = 'w-2 h-2 rounded-full bg-slate-500';
+          label.textContent = 'Auto-Stream: Off';
+        } else {
+          dot.className = 'w-2 h-2 rounded-full bg-emerald-400 animate-ping';
+          label.textContent = 'Auto-Stream: On (14s)';
+          triggerIncomingTicket(Math.random() > 0.5 ? 'whatsapp' : 'instagram');
+          autoStreamInterval = setInterval(() => {
+            triggerIncomingTicket(Math.random() > 0.5 ? 'whatsapp' : 'instagram');
+          }, 14000);
+        }
+      });
+
+      // Sound toggle
+      const soundBtn = document.getElementById('soundToggleBtn');
+      const prefSound = document.getElementById('prefSoundToggle');
+      function syncSoundUI() {
+        document.getElementById('soundIconOn').classList.toggle('hidden', !soundEnabled);
+        document.getElementById('soundIconOff').classList.toggle('hidden', soundEnabled);
+        prefSound.checked = soundEnabled;
+      }
+      soundBtn.addEventListener('click', () => {
+        soundEnabled = !soundEnabled;
+        syncSoundUI();
+        if (soundEnabled) playNotificationChime('whatsapp');
+      });
+      prefSound.addEventListener('change', (e) => {
+        soundEnabled = e.target.checked;
+        syncSoundUI();
+      });
+
+      document.getElementById('prefToastToggle').addEventListener('change', (e) => {
+        toastEnabled = e.target.checked;
+      });
+      document.getElementById('prefAutoAssignToggle').addEventListener('change', (e) => {
+        autoAssignOnReply = e.target.checked;
+      });
+
+      // Notification Bell Drawer toggle
+      const notifDrawer = document.getElementById('notifDrawer');
+      document.getElementById('notifDrawerBtn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        notifDrawer.classList.toggle('hidden');
+      });
+      document.addEventListener('click', (e) => {
+        if (!notifDrawer.contains(e.target) && e.target.id !== 'notifDrawerBtn') {
+          notifDrawer.classList.add('hidden');
+        }
+      });
+
+      // Drawer filter buttons
+      document.querySelectorAll('.drawer-filter-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          activeDrawerFilter = btn.getAttribute('data-drawer-filter');
+          document.querySelectorAll('.drawer-filter-btn').forEach(b => {
+            b.classList.remove('bg-indigo-600', 'text-white');
+            b.classList.add('bg-slate-800');
+          });
+          btn.classList.remove('bg-slate-800');
+          btn.classList.add('bg-indigo-600', 'text-white');
+          renderNotificationDrawer();
+        });
+      });
+
+      document.getElementById('markAllNotifReadBtn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        notifications.forEach(n => { n.unread = false; });
+        tickets.forEach(t => { t.unreadCount = 0; });
+        updateHeaderAndKPIs();
+        renderNotificationDrawer();
+        renderTicketQueue();
+        renderAuditLogTable();
+      });
+
+      document.getElementById('openFullNotifLogBtn').addEventListener('click', () => {
+        notifDrawer.classList.add('hidden');
+        switchMainView('notifications');
+      });
+
+      // Left Queue Channel Pills
+      function setChannelFilter(ch) {
+        activeChannelFilter = ch;
+        document.querySelectorAll('.channel-pill').forEach(p => {
+          const isMatch = p.getAttribute('data-channel') === ch;
+          p.className = isMatch
+            ? 'channel-pill px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-600 text-white shrink-0 flex items-center gap-1.5 transition'
+            : 'channel-pill px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 shrink-0 flex items-center gap-1.5 transition';
+        });
+        switchMainView('inbox');
+        renderTicketQueue();
+      }
+
+      document.querySelectorAll('.channel-pill').forEach(pill => {
+        pill.addEventListener('click', () => {
+          setChannelFilter(pill.getAttribute('data-channel'));
+        });
+      });
+
+      // Status Tabs
+      document.querySelectorAll('.status-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+          activeStatusFilter = tab.getAttribute('data-status');
+          document.querySelectorAll('.status-tab').forEach(t => {
+            t.className = 'status-tab px-2 py-1 rounded-md font-medium text-slate-400 hover:text-white';
+          });
+          tab.className = 'status-tab px-2 py-1 rounded-md font-semibold bg-slate-800 text-white';
+          renderTicketQueue();
+        });
+      });
+
+      // Search & Sort
+      document.getElementById('ticketSearchInput').addEventListener('input', (e) => {
+        searchQuery = e.target.value;
+        renderTicketQueue();
+      });
+
+      document.getElementById('ticketSortSelect').addEventListener('change', (e) => {
+        sortMode = e.target.value;
+        renderTicketQueue();
+      });
+
+      document.getElementById('markAllTicketsReadBtn').addEventListener('click', () => {
+        tickets.forEach(t => { t.unreadCount = 0; });
+        notifications.forEach(n => { n.unread = false; });
+        updateHeaderAndKPIs();
+        renderTicketQueue();
+        renderNotificationDrawer();
+        renderAuditLogTable();
+      });
+
+      // Composer Mode Switcher
+      const replyModeBtn = document.getElementById('composerModeReplyBtn');
+      const noteModeBtn = document.getElementById('composerModeNoteBtn');
+      const wrapperBox = document.getElementById('composerBoxWrapper');
+      const replyInput = document.getElementById('replyTextarea');
+
+      replyModeBtn.addEventListener('click', () => {
+        composerMode = 'reply';
+        replyModeBtn.className = 'px-3 py-1 rounded-lg text-xs font-semibold bg-indigo-600 text-white transition';
+        noteModeBtn.className = 'px-3 py-1 rounded-lg text-xs font-semibold bg-slate-800 text-amber-300 hover:bg-slate-700 transition flex items-center gap-1';
+        wrapperBox.className = 'rounded-xl border border-slate-700 bg-slate-950 p-2.5 focus-within:border-indigo-500 transition';
+        replyInput.placeholder = 'Write a reply to the customer...';
+        const activeT = tickets.find(t => t.id === activeTicketId);
+        if (activeT) renderActiveConversation(activeT);
+      });
+
+      noteModeBtn.addEventListener('click', () => {
+        composerMode = 'note';
+        noteModeBtn.className = 'px-3 py-1 rounded-lg text-xs font-semibold bg-amber-500 text-slate-950 transition flex items-center gap-1';
+        replyModeBtn.className = 'px-3 py-1 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 transition';
+        wrapperBox.className = 'rounded-xl border border-amber-500/50 bg-amber-950/20 p-2.5 focus-within:border-amber-400 transition';
+        replyInput.placeholder = 'Add an internal team note (only visible to support agents)...';
+        const activeT = tickets.find(t => t.id === activeTicketId);
+        if (activeT) renderActiveConversation(activeT);
+      });
+
+      // Canned replies
+      document.querySelectorAll('.canned-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          replyInput.value = btn.getAttribute('data-template');
+          replyInput.focus();
+        });
+      });
+
+      // Send buttons
+      document.getElementById('sendReplyBtn').addEventListener('click', () => handleSendMessage(false));
+      document.getElementById('sendAndResolveBtn').addEventListener('click', () => handleSendMessage(true));
+      replyInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          handleSendMessage(false);
+        }
+      });
+
+      document.getElementById('simulateCustomerReplyBtn').addEventListener('click', () => {
+        simulateCustomerFollowUpOnActiveTicket();
+      });
+
+      // Right pane property selectors
+      document.getElementById('propStatusSelect').addEventListener('change', (e) => {
+        const ticket = tickets.find(t => t.id === activeTicketId);
+        if (ticket) {
+          ticket.status = e.target.value;
+          renderTicketQueue();
+          renderActiveConversation(ticket);
+          updateCharts();
+        }
+      });
+
+      document.getElementById('propPrioritySelect').addEventListener('change', (e) => {
+        const ticket = tickets.find(t => t.id === activeTicketId);
+        if (ticket) {
+          ticket.priority = e.target.value;
+          renderTicketQueue();
+        }
+      });
+
+      document.getElementById('propAssigneeSelect').addEventListener('change', (e) => {
+        const ticket = tickets.find(t => t.id === activeTicketId);
+        if (ticket) {
+          ticket.assignee = e.target.value;
+          renderActiveConversation(ticket);
+        }
+      });
+
+      // Add Tag
+      document.getElementById('addTagBtn').addEventListener('click', () => {
+        const input = document.getElementById('newTagInput');
+        const val = input.value.trim();
+        const ticket = tickets.find(t => t.id === activeTicketId);
+        if (val && ticket) {
+          ticket.tags.push(val);
+          input.value = '';
+          renderRightContextPane(ticket);
+        }
+      });
+
+      // Audit Log filter
+      document.getElementById('logChannelFilter').addEventListener('change', () => {
+        renderAuditLogTable();
+      });
+
+      // Manual Ticket Modal
+      const manualModal = document.getElementById('manualTicketModal');
+      document.getElementById('newManualTicketBtn').addEventListener('click', () => {
+        manualModal.classList.remove('hidden');
+      });
+      document.getElementById('closeManualModalBtn').addEventListener('click', () => {
+        manualModal.classList.add('hidden');
+      });
+      document.getElementById('cancelManualModalBtn').addEventListener('click', () => {
+        manualModal.classList.add('hidden');
+      });
+      document.getElementById('submitManualTicketBtn').addEventListener('click', () => {
+        const channel = document.getElementById('manualChannel').value;
+        const priority = document.getElementById('manualPriority').value;
+        const name = document.getElementById('manualName').value.trim() || 'Guest Customer';
+        const handle = document.getElementById('manualHandle').value.trim() || (channel === 'whatsapp' ? '+62 812-0000-1111' : '@guest_ig');
+        const msg = document.getElementById('manualMessage').value.trim() || 'Halo admin, saya butuh bantuan terkait pesanan saya.';
+
+        triggerIncomingTicket(channel, {
+          customerName: name,
+          handle,
+          priority,
+          subType: channel === 'whatsapp' ? 'Manual WA Entry' : 'Manual IG Entry',
+          text: msg,
+          tags: ['Manual Log']
+        });
+
+        document.getElementById('manualName').value = '';
+        document.getElementById('manualHandle').value = '';
+        document.getElementById('manualMessage').value = '';
+        manualModal.classList.add('hidden');
+      });
+    });
+  </script>
+</body>
+</html>
